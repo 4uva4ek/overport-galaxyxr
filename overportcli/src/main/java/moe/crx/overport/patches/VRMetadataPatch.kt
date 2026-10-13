@@ -89,23 +89,56 @@ fun createProperty(key: String, value: String): JSONObject {
 }
 
 val PATCH_VR_METADATA = Patch("patch_vr_metadata") {
+    // Target: "all" (default, upstream behavior) or "galaxyxr" (Android XR subset).
+    val target = (it.firstOrNull() ?: "all").lowercase()
+
+    // Galaxy XR (Android XR) target: only the relevant markers,
+    // no Pico/YVR/Huawei/HTC vendor-specific meta-data.
+    val galaxyManifestNodes = listOf(
+        createUsesFeature("android.software.xr.api.openxr", true),
+        createUsesFeature("android.software.xr.api.spatial", true),
+        createUsesFeature("android.software.xr.input.controller", false),
+        createUsesFeature("android.hardware.xr.input.hand_tracking", false),
+        createUsesFeature("android.hardware.xr.input.eye_tracking", false),
+        createUsesPermission("org.khronos.openxr.permission.OPENXR"),
+        createUsesPermission("org.khronos.openxr.permission.OPENXR_SYSTEM"),
+        createUsesPermission("android.permission.EYE_TRACKING_COARSE"),
+        createUsesPermission("android.permission.EYE_TRACKING_FINE"),
+        createUsesPermission("android.permission.HAND_TRACKING"),
+        createUsesPermission("android.permission.SCENE_UNDERSTANDING_COARSE"),
+        createUsesPermission("android.permission.SCENE_UNDERSTANDING_FINE"),
+    )
+
+    val galaxyAppNodes = listOf(
+        createMetadata("com.oculus.supportedDevices", "all"),
+        createMetadataFloat("android.max_aspect", 2.1f),
+        createMetadata("minWaveSDKVersion", "1"),
+        createUsesLibrary("libopenxr.google.so", false),
+    )
+
     selectManifestJson {
         takeNodesEach({ named("manifest") }) {
             takeNodes {
-                this?.put(createUsesFeature("android.software.xr.api.openxr", true))
-                    ?.put(createUsesFeature("android.software.xr.api.spatial", true))
-                    ?.put(createUsesFeature("android.software.xr.input.controller", false))
-                    ?.put(createUsesFeature("android.hardware.xr.input.hand_tracking", false))
-                    ?.put(createUsesFeature("android.hardware.xr.input.eye_tracking", false))
-                    ?.put(createUsesPermission("org.khronos.openxr.permission.OPENXR"))
-                    ?.put(createUsesPermission("org.khronos.openxr.permission.OPENXR_SYSTEM"))
-                    ?.put(createUsesPermission("com.huawei.android.permission.VR"))
-                    ?.put(createUsesPermission("android.permission.EYE_TRACKING_COARSE"))
-                    ?.put(createUsesPermission("android.permission.EYE_TRACKING_FINE"))
-                    ?.put(createUsesPermission("android.permission.FACE_TRACKING"))
-                    ?.put(createUsesPermission("android.permission.HAND_TRACKING"))
-                    ?.put(createUsesPermission("android.permission.SCENE_UNDERSTANDING_COARSE"))
-                    ?.put(createUsesPermission("android.permission.SCENE_UNDERSTANDING_FINE"))
+                if (target == "galaxyxr") {
+                    val nodes = this
+                    if (nodes != null) for (node in galaxyManifestNodes) nodes.put(node)
+                    nodes
+                } else {
+                    this?.put(createUsesFeature("android.software.xr.api.openxr", true))
+                        ?.put(createUsesFeature("android.software.xr.api.spatial", true))
+                        ?.put(createUsesFeature("android.software.xr.input.controller", false))
+                        ?.put(createUsesFeature("android.hardware.xr.input.hand_tracking", false))
+                        ?.put(createUsesFeature("android.hardware.xr.input.eye_tracking", false))
+                        ?.put(createUsesPermission("org.khronos.openxr.permission.OPENXR"))
+                        ?.put(createUsesPermission("org.khronos.openxr.permission.OPENXR_SYSTEM"))
+                        ?.put(createUsesPermission("com.huawei.android.permission.VR"))
+                        ?.put(createUsesPermission("android.permission.EYE_TRACKING_COARSE"))
+                        ?.put(createUsesPermission("android.permission.EYE_TRACKING_FINE"))
+                        ?.put(createUsesPermission("android.permission.FACE_TRACKING"))
+                        ?.put(createUsesPermission("android.permission.HAND_TRACKING"))
+                        ?.put(createUsesPermission("android.permission.SCENE_UNDERSTANDING_COARSE"))
+                        ?.put(createUsesPermission("android.permission.SCENE_UNDERSTANDING_FINE"))
+                }
             }
             takeNodesEach({ named("application") }) {
                 takeNodesEach({ named("activity") }) {
@@ -127,18 +160,24 @@ val PATCH_VR_METADATA = Patch("patch_vr_metadata") {
                     if (nameAttribute() == "com.oculus.supportedDevices") null else this
                 }
                 takeNodes {
-                    this?.put(createMetadata("pvr.app.type", "vr"))
-                        ?.put(createMetadata("com.yvr.intent.category.VR", "vr_only"))
-                        ?.put(createMetadata("com.oculus.supportedDevices", "all"))
-                        ?.put(createMetadata("com.huawei.android.vr.application.mode", "vr_only"))
-                        ?.put(createMetadata("com.huawei.android.vr.application.type", "game"))
-                        ?.put(createMetadata("com.huawei.vr.application.freeDegree", "3dof|6dof"))
-                        ?.put(createMetadataFloat("android.max_aspect", 2.1f))
-                        ?.put(createMetadata("minWaveSDKVersion", "1"))
-                        ?.put(createMetadata("com.htc.vr.content.NumController", "1,2"))
-                        ?.put(createMetadata("com.htc.vr.content.NumDoFController", "3,6DoF"))
-                        ?.put(createMetadata("com.htc.vr.content.NumDoFHmd", "3,6DoF"))
-                        ?.put(createUsesLibrary("libopenxr.google.so", false))
+                    if (target == "galaxyxr") {
+                        val nodes = this
+                        if (nodes != null) for (node in galaxyAppNodes) nodes.put(node)
+                        nodes
+                    } else {
+                        this?.put(createMetadata("pvr.app.type", "vr"))
+                            ?.put(createMetadata("com.yvr.intent.category.VR", "vr_only"))
+                            ?.put(createMetadata("com.oculus.supportedDevices", "all"))
+                            ?.put(createMetadata("com.huawei.android.vr.application.mode", "vr_only"))
+                            ?.put(createMetadata("com.huawei.android.vr.application.type", "game"))
+                            ?.put(createMetadata("com.huawei.vr.application.freeDegree", "3dof|6dof"))
+                            ?.put(createMetadataFloat("android.max_aspect", 2.1f))
+                            ?.put(createMetadata("minWaveSDKVersion", "1"))
+                            ?.put(createMetadata("com.htc.vr.content.NumController", "1,2"))
+                            ?.put(createMetadata("com.htc.vr.content.NumDoFController", "3,6DoF"))
+                            ?.put(createMetadata("com.htc.vr.content.NumDoFHmd", "3,6DoF"))
+                            ?.put(createUsesLibrary("libopenxr.google.so", false))
+                    }
                 }
             }
         }

@@ -109,23 +109,32 @@ class PatcherContext(
         args: Map<String, List<String>>,
         callback: (Int, Patch) -> Unit = { _, _ -> }
     ) {
-        val librariesDir = VersionManager(patcherDirectory).getLibraries(overportVersion)
+        val patches = args.keys.mapNotNull { PatchStore.get(it) }
+        val needsConfig = patches.any { it.requiresOverportConfig }
+
+        val librariesDir = if (needsConfig) {
+            VersionManager(patcherDirectory).getLibraries(overportVersion)
+        } else {
+            // Manifest-only run: no patch requires the closed overport runtime,
+            // so don't resolve its libraries directory.
+            patcherDirectory.resolve("libraries/no-config").apply { mkdirs() }
+        }
 
         val executor = PatchExecutor(librariesDir, workingDir, apk())
-
-        val patches = args.keys.mapNotNull { PatchStore.get(it) }
 
         patches.forEachIndexed { index, patch ->
             callback(index, patch)
             patch.executor(executor, args[patch.name] ?: listOf())
         }
 
-        executor.selectConfig {
-            patched = OverportPatchedInfo(
-                by = VersionManager.VERSION,
-                with = overportVersion,
-                patches = patches.map { it.name }
-            )
+        if (needsConfig) {
+            executor.selectConfig {
+                patched = OverportPatchedInfo(
+                    by = VersionManager.VERSION,
+                    with = overportVersion,
+                    patches = patches.map { it.name }
+                )
+            }
         }
     }
 

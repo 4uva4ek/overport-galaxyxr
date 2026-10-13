@@ -2,6 +2,7 @@ package moe.crx.overport.commands
 
 import kotlinx.coroutines.cancelAndJoin
 import moe.crx.overport.cli.CliCommand
+import moe.crx.overport.galaxyxr.GalaxyXrPatches
 import moe.crx.overport.patches.PLATFORM_ICON_RESIZER
 import moe.crx.overport.patching.PatchStore
 import moe.crx.overport.patching.PatcherContext
@@ -46,6 +47,11 @@ object PatchApplicationCommand : CliCommand() {
         println("If not specified, uses every recommended patch available. Use \"overport patches\" to see available patches.")
         println("You can also specify arguments for a specific patch using <patch name>=<comma-separated arguments>.")
         println()
+        println("--target=<value>")
+        println("Specifies target platform preset. Available targets: ${GalaxyXrPatches.TARGET}.")
+        println("Uses the recommended patch set for that target")
+        println("(unless --patches is also specified, which takes precedence).")
+        println()
         println("--version=<value>")
         println("Specifies which overport version to use for patching.")
         println("Value also could be \"experimental\" or \"latest\".")
@@ -73,6 +79,7 @@ object PatchApplicationCommand : CliCommand() {
         var patches: Map<String, List<String>>? = null,
         var nameFormat: String? = null,
         var overportVersion: String? = null,
+        var target: String? = null,
     )
 
     private fun scanArguments(args: List<String>): ParsedArguments {
@@ -93,6 +100,7 @@ object PatchApplicationCommand : CliCommand() {
 
                 "--output-name" -> parsed.nameFormat = value
                 "--version" -> parsed.overportVersion = value
+                "--target" -> parsed.target = value
             }
         }
 
@@ -116,7 +124,14 @@ object PatchApplicationCommand : CliCommand() {
 
         val workspace = parsed.workspace?.let { File(it) } ?: defaultWorkspace()
 
-        val patches = parsed.patches ?: PatchStore.recommended().associate { it.name to listOf() }
+        val patches = parsed.patches ?: when (parsed.target) {
+            GalaxyXrPatches.TARGET -> GalaxyXrPatches.recommended()
+            null -> PatchStore.recommended().associate { it.name to listOf() }
+            else -> {
+                println("Unknown target '${parsed.target}'. Available targets: ${GalaxyXrPatches.TARGET}. Using the default patch set.")
+                PatchStore.recommended().associate { it.name to listOf() }
+            }
+        }
 
         val nameFormat = parsed.nameFormat ?: DEFAULT_FORMAT
 
@@ -137,6 +152,9 @@ object PatchApplicationCommand : CliCommand() {
         patcher.checkout()
         waitingForLibraries.cancelAndJoin()
 
+        parsed.target?.let {
+            println("Target platform: $it")
+        }
         println("Using overport version: ${patcher.overportVersion()}")
 
         val waitingForDecompilation = updateLine {
