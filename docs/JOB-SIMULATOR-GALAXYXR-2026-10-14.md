@@ -45,7 +45,15 @@ and rejection of truncated or non-ELF input.
 
 ## Validation
 
-Headset test of the reconverted APK: pending at the time of writing; see the end of this file.
+Headset test, 2026-10-14 01:33 (SM-I610, firmware I610UEU2AZF3): the APK reconverted with the
+signature-based patch was installed over the previous conversion with the same signing key
+and launched cold. The log shows `OverportGXR` policy and BOOST requests accepted, supported
+refresh rates 60/72/90 Hz with 90 Hz accepted, `CompositorOpenXR_GLES::Layer::Initialize():
+CreateSwapchain for eye 0: ..., 4 stages` for each layer, no `EGL_BAD_MATCH`, no
+`XR_ERROR_INITIALIZATION_FAILED`, and Unity reaching `Finished Setup` and the first-time
+introduction. No new tombstone or dropbox crash entry was recorded. The user confirmed that the
+game works. Evidence: `diagnostics/overport-jobsimulator-20261014/` in the workspace
+(tombstones, launch logs, APK comparison, check output); not distributed with the repository.
 
 ## Scope
 

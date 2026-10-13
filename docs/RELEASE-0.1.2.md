@@ -18,5 +18,6 @@ performance defaults are unchanged. 0.1.1 users can install this version from **
 
 Validation: focused checks on the two inspected Unity libraries (signature match,
 single changed byte, idempotence, broken/duplicated signature and truncated input),
-Windows/Android compilation, updater tests. Headset results for Job Simulator are
-recorded in `docs/JOB-SIMULATOR-GALAXYXR-2026-10-14.md`.
+Windows/Android compilation, updater tests. Job Simulator 1.4.0.6515 reconverted with this
+fix starts and runs on Samsung SM-I610 (user-confirmed); details in
+`docs/JOB-SIMULATOR-GALAXYXR-2026-10-14.md`. Other games remain untested.

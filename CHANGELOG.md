@@ -8,7 +8,8 @@
   matches stay untouched and are reported as `NOT APPLIED`.
 - Signature checks pass on Unity 2022.3.33f1 (Beat Saber 1.40.8, output identical to 0.1.0)
   and 2022.3.67f1 (Job Simulator 1.4.0.6515, which crashed in `ovrp_SetupLayer` after
-  `EGL_BAD_MATCH` without the fix). Headset results: `docs/JOB-SIMULATOR-GALAXYXR-2026-10-14.md`.
+  `EGL_BAD_MATCH` without the fix). Job Simulator starts and runs on SM-I610 after reconversion;
+  see `docs/JOB-SIMULATOR-GALAXYXR-2026-10-14.md`.
 
 ## Galaxy XR 0.1.0 — 2026-10-13
 
