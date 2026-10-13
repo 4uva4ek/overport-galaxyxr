@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## Galaxy XR 0.1.2 — 2026-10-14
 
 - Unity EGL startup fix now locates the no-error context request by its ARM64 instruction
   signature (`mov w1, #0x31b3; mov w2, #1; bl`) instead of a whole-file digest, so every

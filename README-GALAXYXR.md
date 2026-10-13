@@ -19,7 +19,7 @@
 CLI поставляется дополнительно и требует Java 21.
 
 ```sh
-java -jar overport-galaxyxr-0.1.0-cli.jar patch --input=game.apk --target=galaxyxr --output=patched
+java -jar overport-galaxyxr-0.1.2-cli.jar patch --input=game.apk --target=galaxyxr --output=patched
 ```
 
 Для каждого приложения профиль Galaxy XR по умолчанию задаёт:
@@ -38,10 +38,10 @@ java -jar overport-galaxyxr-0.1.0-cli.jar patch --input=game.apk --target=galaxy
 
 ```sh
 # Снизить нагрузку на GPU:
-java -jar overport-galaxyxr-0.1.0-cli.jar patch --input=game.apk --target=galaxyxr --texture-size=2320x2700
+java -jar overport-galaxyxr-0.1.2-cli.jar patch --input=game.apk --target=galaxyxr --texture-size=2320x2700
 
 # Вернуть рекомендации runtime и управление производительностью приложению:
-java -jar overport-galaxyxr-0.1.0-cli.jar patch --input=game.apk --target=galaxyxr --texture-size=native --performance=app
+java -jar overport-galaxyxr-0.1.2-cli.jar patch --input=game.apk --target=galaxyxr --texture-size=native --performance=app
 ```
 
 `native` означает рекомендацию OpenXR runtime (в проверенной конфигурации

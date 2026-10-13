@@ -14,7 +14,7 @@ EGL compatibility fix, and a fix for Overport's 4096-pixel swapchain abort.
 Games still control their render scale; runtime hints do not guarantee 90 FPS.
 
 ```sh
-java -jar overport-galaxyxr-0.1.0-cli.jar patch --input=game.apk --target=galaxyxr --output=patched
+java -jar overport-galaxyxr-0.1.2-cli.jar patch --input=game.apk --target=galaxyxr --output=patched
 ```
 
 The optional CLI requires Java 21. The target uses the inspected ARM64 runtime 3.4.3-aa54c3f.
