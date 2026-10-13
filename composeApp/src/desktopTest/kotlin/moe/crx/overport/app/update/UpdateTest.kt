@@ -53,7 +53,7 @@ class UpdateTest {
             return zip
         }
         try {
-            val files = listOf("OverportGalaxyXR/OverportGalaxyXR.exe", "OverportGalaxyXR/runtime/bin/server/jvm.dll", "OverportGalaxyXR/app/OverportGalaxyXR.cfg")
+            val files = listOf("OverportGalaxyXR\\runtime\\", "OverportGalaxyXR/OverportGalaxyXR.exe", "OverportGalaxyXR/runtime/bin/server/jvm.dll", "OverportGalaxyXR/app/OverportGalaxyXR.cfg")
             WindowsAppUpdater.extract(archive(files), File(root, "ok").apply { mkdir() })
             for ((index, name) in listOf("OverportGalaxyXR/../outside", "OverportGalaxyXR/C:/outside", "elsewhere/file").withIndex()) {
                 assertFails { WindowsAppUpdater.extract(archive(listOf(name)), File(root, "bad$index").apply { mkdir() }) }

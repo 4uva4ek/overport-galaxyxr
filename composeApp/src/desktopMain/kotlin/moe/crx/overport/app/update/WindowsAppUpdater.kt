@@ -59,7 +59,7 @@ class WindowsAppUpdater(private val exit: () -> Unit) : AppUpdater {
                         name.split('/').none { it == ".." || it.endsWith('.') || it.endsWith(' ') }) { "Invalid update archive path." }
                     val out = File(directory, name).canonicalFile
                     require(out.toPath().startsWith(root) && out.toPath() != root) { "Update archive escapes its directory." }
-                    if (entry.isDirectory) check(out.mkdirs() || out.isDirectory)
+                    if (name.endsWith('/')) check(out.mkdirs() || out.isDirectory)
                     else {
                         check(out.parentFile.mkdirs() || out.parentFile.isDirectory)
                         check(out.createNewFile()) { "Duplicate file in update archive." }
