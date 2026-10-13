@@ -47,5 +47,10 @@ object PatchStore {
         register(PATCH_FORCE_PASSTHROUGH)
         register(PATCH_DISABLE_SPACE_WARP)
         register(PATCH_DISABLE_CONTROLLER_OFFSET)
+        register(PATCH_GALAXYXR_UNITY_GLES)
+        register(PATCH_TEXTURE_SIZE)
+        register(PATCH_VERBOSE_RUNTIME)
+        register(PATCH_GALAXYXR_SWAPCHAIN)
+        register(PATCH_GALAXYXR_PERFORMANCE)
     }
 }

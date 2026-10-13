@@ -11,7 +11,7 @@ object DisplayHelpCommand : CliCommand() {
     override fun description() = "Display this message."
 
     override fun printHelp(): Boolean {
-        println("overport cli utility, version ${VersionManager.VERSION}")
+        println("overport cli utility, version ${VersionManager.VERSION} (${VersionManager.DISTRIBUTION})")
         println("usage: overport <command> [args]")
         println()
         println("Available commands:")

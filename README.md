@@ -1,51 +1,43 @@
-<p align="center"><img src="assets/overport.svg" alt="overport logo"></p>
+# Overport Galaxy XR
 
-# ovrport/app
+A Samsung Galaxy XR fork of [ovrport/app](https://github.com/ovrport/app), maintained by **4uva4ek**.
 
-overport (aka ovrport) app is used to patch Android games targeting Quest headsets. Functionality will be
-expanded in the future.
+The Galaxy XR CLI preset applies to every APK you convert: **3552×3840 per eye**,
+**CPU/GPU BOOST** and **90 Hz when supported**, Android XR metadata, a guarded Unity
+EGL compatibility fix, and a fix for Overport's 4096-pixel swapchain abort.
+Games still control their render scale; runtime hints do not guarantee 90 FPS.
 
-Powered by [Compose Multiplatform](https://www.jetbrains.com/compose-multiplatform/)
-and [ARSCLib](https://github.com/REAndroid/ARSCLib).
+```sh
+java -jar overport-galaxyxr-0.1.0.jar patch --input=game.apk --target=galaxyxr --output=patched
+```
 
-[Builds](https://github.com/ovrport/app/releases) available for
-Windows, Linux, macOS and Android.
+Requires Java 21. The target defaults to the inspected ARM64 runtime 3.4.3-aa54c3f.
+Use `--texture-size=2320x2700` to reduce rendering load, or `--texture-size=native`
+to restore the runtime's recommendation. `--performance=app` restores application
+control of CPU/GPU hints and refresh rate. Explicit `--patches` overrides the preset.
+The release is the CLI patcher; upstream graphical apps are not this release's interface.
 
-# Supported platforms
+[Russian usage guide](README-GALAXYXR.md) | [Validation](docs/BEAT-SABER-GALAXYXR-2026-10-13.md) |
+[Native adapter/build](native/galaxyxr/README.md) | [Upstream README](README-UPSTREAM.md)
 
-Tier 1 platforms:
+All modifications are confined to the converted application. Keep your original APK
+and signing workspace for rollback. No firmware, system runtime, root modules or
+persistent device settings are changed. Reboot does not undo an APK update.
+Game files and closed third-party runtime binaries are not distributed here.
+Compatibility beyond tested applications is not guaranteed.
 
-* [x] Pico 4 Ultra
+## Build
 
-Tier 2 platforms:
+Build the native adapter first using Android NDK r29 (Linux or WSL), then the CLI:
 
-* [x] Pico 4 / 4 Pro
-* [x] Pico Neo 3
-* [x] Oculus Quest 2
+```sh
+ANDROID_NDK_HOME=/path/to/android-ndk-r29 bash native/galaxyxr/build.sh
+./gradlew :overportcli:shadowJar
+```
 
-Tier 3 platforms:
+## Credits and license
 
-* [x] Oculus Quest (1)
-* [x] Meta Quest 3 / 3s
-* [x] YVR/PFDMR headsets
-
-Other OpenXR-compatible headsets may also be supported but they require additional testing.
-
-# Reporting issues
-
-Please, attach logs to your issue report if you encounter any problems. You can obtain them with `adb logcat`.
-
-If you have any issues regarding game compatibility, please, enable verbose logging first with
-`adb shell setprop debug.sys.ovrport.verboselogging 1`.
-
-# About legality
-
-Think of this app like an emulator: you need to legally obtain the game files to use it.
-
-Obviously, to get a Quest game running on a different headset, the app has to strip away some entitlement checks.
-However, the game still won't launch on a Quest unless you’ve actually bought it.
-
-# License
-
-overport app is licensed under the GPLv3 license. Please see the [
-`LICENSE`](https://github.com/ovrport/app/blob/master/LICENSE) file for more information.
+Original Overport by [ovrport](https://github.com/ovrport/app), GPLv3; see [LICENSE](LICENSE).
+Powered by Compose Multiplatform and ARSCLib. Manifest-only patch support follows
+an approach from [OVRPort-PFDMR](https://github.com/urscaviezel/OVRPort-PFDMR).
+Khronos OpenXR headers retain their attribution and MIT license under `native/galaxyxr/include`.

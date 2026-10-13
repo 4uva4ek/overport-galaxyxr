@@ -22,3 +22,4 @@ composeApp/release/output-metadata.json
 *.salive
 workspace
 ignore
+overportcli/src/main/resources/galaxyxr/**/*.so

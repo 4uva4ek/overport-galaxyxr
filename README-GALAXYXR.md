@@ -1,92 +1,55 @@
-# overport — Galaxy XR edition
+# Overport Galaxy XR
 
-Форк [ovrport/app](https://github.com/ovrport/app) для патчинга Quest-игр под
-**Samsung Galaxy XR** (Android XR).
+Форк [ovrport/app](https://github.com/ovrport/app), поддерживаемый **4uva4ek**.
+Подготавливает APK приложений Quest для Samsung Galaxy XR. Требуется Java 21.
 
-## Как это работает (архитектура закрытого рунтайма)
-
-Рунтайм overport (дистрибуция: `https://ovrp.crx.moe/api/v1/releases/index`,
-исходники закрыты) при анализе свежей сборки `3.4.3-aa54c3f` (experimental)
-содержит следующий стек OpenXR:
-
-| Библиотека | Роль |
-|---|---|
-| `libOVRPlugin.so` | Замена OVRPlugin от Meta (OpenXR-композитор, OVR_* API) |
-| `libopenxr_loader.so` | Диспетчер: читает `ro.product.brand`, грузит платформенный лоадер |
-| `libopenxr_loader_pico.so` | Pico (bytedance): интеракционный профиль, джойстики |
-| `libopenxr_loader_meta.so` | Meta Quest |
-| `libopenxr_loader_yvr.so` | Yield VR |
-| `libopenxr_loader_huawei.so` | Huawei |
-| `libopenxr_loader_generic.so` | **Полноценная реализация Khronos OpenXR-лоадера**: сканирует манифесты в `/system/etc/openxr` и `/vendor/etc/openxr` и грузит тот runtime, что описан в них |
-| `libovrplatformloader.so` | Шим OVRP_* (пользователь/лидерборды/достижения, backend ovrp.crx.moe) |
-| `libpxrplatformloader.so` | Pico-вариант платформенного бэкенда |
-
-Диспетчер выбирает лоадер по `ro.product.brand`: `bytedance` → pico и т.д.
-Для неизвестных брендов (в т.ч. **samsung**) fallback — `generic`. На Galaxy XR
-(Android XR) системный OpenXR-runtime — Google (`libopenxr.google.so`), его
-манифест находится в `/system/etc/openxr/`, поэтому **generic-лоадер должен
-подхватить его без изменений**: в отличие от PFDMR-форка (где система PFDMR
-требовала собственного shim-лоадера), здесь штатный путь, вероятно, работает.
-
-## Что сделано в этом форке
-
-1. **`--target=galaxyxr`** в CLI-команде `patch` — пресет набора патчей под
-   Galaxy XR (все recommended-патчи, метаданные — Android XR подмножество).
-2. **`patch_vr_metadata` принимает аргумент цели** (`galaxyxr` / по умолчанию
-   `all`): для Galaxy XR в манифест пишутся только релевантные маркеры
-   (`android.software.xr.api.openxr`, XR-фичи, Khronos-права, XR-проп
-   активности, `libopenxr.google.so`, `max_aspect`, `minWaveSDKVersion`),
-   без Pico/YVR/Huawei/HTC вендорного мусора.
-3. **`requiresOverportConfig`** флаг патча (паттерн из форка
-   [OVRPort-PFDMR](https://github.com/urscaviezel/OVRPort-PFDMR)): манифестные
-   патчи можно выполнять без закрытого рунтайма — в этом случае каталог
-   либ и запись конфига пропускаются.
-
-Использование:
-
-```
-overport patch --input=game.apk --target=galaxyxr
+```sh
+java -jar overport-galaxyxr-0.1.0.jar patch --input=game.apk --target=galaxyxr --output=patched
 ```
 
-## Открытые вопросы (нужна проверка на железе)
+Для каждого приложения профиль Galaxy XR по умолчанию задаёт:
 
-- Точное значение `ro.product.brand` на Galaxy XR (ожидаемо `samsung`;
-  если Samsung использует другой бренд/одиночный product-маркер, диспетчер
-  всё равно уйдёт в generic).
-- Есть ли на прошивке Galaxy XR манифест `/system/etc/openxr/*` у
-  `libopenxr.google.so` (проверить: `ls /system/etc/openxr` в adb).
-- Как ведут себя игры в режиме unmanaged (XR_ACTIVITY_START_MODE) на Galaxy XR.
-- ОVRP-платформенный бэкенд (liBovrplatformloader) ориентирован на
-  ovrp.crx.moe-сервис; для Galaxy XR, возможно, понадобится свой бэкенд
-  (Samsung-аккаунт) — либо просто отключать.
-- Стереопарадокс PFDMR (swap левый/правый eye) — проверить, есть ли он на
-  Galaxy XR; если да — повторить `StereoPatch`-подход из PFDMR-форка.
+- рекомендацию **3552×3840 на глаз**; игра может применять собственный масштаб;
+- запросы **BOOST для CPU/GPU** и **90 Гц**, если частота поддерживается;
+- исправление аварийного завершения Overport при текстурах больше 4096 пикселей;
+- метаданные Android XR и проверяемое исправление EGL для известной версии Unity.
 
-## Проверка (сборка + тестовые APK)
+Запросы производительности не гарантируют 90 FPS: частотами и температурными
+ограничениями управляет системный runtime. На SM-I610 подтверждены 60/72/90 Гц.
+Раскладка контроллеров соответствует Quest. Переназначения AB/XY нет;
+в Beat Saber паузу открывает отдельная кнопка Menu левого контроллера.
 
-- Сборка: Gradle 8.13 + Temurin JDK 21 → `:overportcli:shadowJar`
-  (`overportcli-1.2.3-all.jar`, ~22 МБ), флаг `--target=galaxyxr` в `--help`.
-- **Singularity** (чистый APK `com.lumi.singularity`): патч прошёл,
-  overport `3.4.3-aa54c3f`; манифест вывода — только Android XR подмножество,
-  вендорных meta-data нет, весь стек либ рунтайма + конфиг на месте.
-- **Beat Saber v1716** (репак «VRP» = старая сборка overport: META-лоадер
-  переименован в `libopenxr_loader.so`, `libOVRPlugin.so` — старый OVR-шим):
-  - патчер заменил весь стек на 3.4.3 (диспетчер + 5 брендовых лоадеров +
-    платформенные лоадеры + `liboverport.config.so`);
-  - `libOVRPlugin.so` остался старый (upstream-патч `patch_copy_ovrplugin_vrapi`
-    заменяет OVR-шим только при наличии `libvrapi.so`, которого в Beat Saber
-    нет) — проверено readelf: старому шиму нужно всего 2 `xr*`-символа из
-    `libopenxr_loader.so`, диспетчер 3.4.3 экспортирует все 56 — несовместимых
-    зависимостей нет. Цепочка: OVR-шим → диспетчер → `ro.product.brand`
-    (samsung) → `generic` (Khronos) → Google OpenXR.
-  - frida-агент репака (`libfrda.so`) не затронут.
+## Настройки
 
-## Форки как референс
+```sh
+# Снизить нагрузку на GPU:
+java -jar overport-galaxyxr-0.1.0.jar patch --input=game.apk --target=galaxyxr --texture-size=2320x2700
 
-- **PFDMR** ([urscaviezel/OVRPort-PFDMR](https://github.com/urscaviezel/OVRPort-PFDMR)) —
-  единственный содержательный форк: собственный `forward.cpp`-шим OpenXR
-  (dlopen системного `libopenxr.so`, re-export + фикс стерео), `requiresOverportConfig`.
-  Изучен как шаблон; в Galaxy XR-форке собственный нативный шим пока не нужен
-  (generic-лоадер рунтайма должен подхватить Google OpenXR сам).
-- Остальные форки (tomcat-bj, TechnoHoschi, bitsk, xiaoyang00001) — замороженные
-  зеркала, изменений нет.
+# Вернуть рекомендации runtime и управление производительностью приложению:
+java -jar overport-galaxyxr-0.1.0.jar patch --input=game.apk --target=galaxyxr --texture-size=native --performance=app
+```
+
+`native` означает рекомендацию OpenXR runtime (в проверенной конфигурации
+1856×2160), а не разрешение панели. `--verbose-runtime` включает подробные
+журналы внутри APK; для обычной игры он не нужен. Явный список `--patches`
+заменяет профиль. Параметры разрешения и производительности применяются после него.
+
+## Совместимость и откат
+
+Профиль использует проверенный ARM64 runtime **3.4.3-aa54c3f**.
+Исправление ограничения swapchain проверяет полный SHA-256 и отклоняет
+неизвестные бинарные версии. EGL-исправление применяется только к известному
+ARM64 Unity 2022.3.33f1; для других версий выводится `NOT APPLIED`.
+Совместимость со всеми играми Quest не подтверждена.
+
+Все изменения находятся в новом APK. Прошивка, системный OpenXR, KernelSU
+и настройки устройства не меняются. Принудительная остановка приложения
+прекращает работу адаптера. Для отката переустановите сохранённый предыдущий APK
+с той же подписью; перезагрузка не отменяет обновление приложения.
+Сохраняйте каталог `--workspace`: в нём находится ключ подписи.
+
+Релиз содержит CLI; графические приложения upstream не являются интерфейсом
+этого релиза. Игровые APK и закрытые сторонние библиотеки не распространяются.
+
+[Проверка на Beat Saber](docs/BEAT-SABER-GALAXYXR-2026-10-13.md) |
+[Исходники и сборка адаптера](native/galaxyxr/README.md)

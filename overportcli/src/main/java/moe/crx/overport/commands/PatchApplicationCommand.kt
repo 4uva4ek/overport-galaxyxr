@@ -4,6 +4,10 @@ import kotlinx.coroutines.cancelAndJoin
 import moe.crx.overport.cli.CliCommand
 import moe.crx.overport.galaxyxr.GalaxyXrPatches
 import moe.crx.overport.patches.PLATFORM_ICON_RESIZER
+import moe.crx.overport.patches.PATCH_TEXTURE_SIZE
+import moe.crx.overport.patches.PATCH_VERBOSE_RUNTIME
+import moe.crx.overport.patches.PATCH_GALAXYXR_PERFORMANCE
+import moe.crx.overport.patches.TextureSize
 import moe.crx.overport.patching.PatchStore
 import moe.crx.overport.patching.PatcherContext
 import moe.crx.overport.utils.DesktopUtil.defaultWorkspace
@@ -51,11 +55,20 @@ object PatchApplicationCommand : CliCommand() {
         println("Specifies target platform preset. Available targets: ${GalaxyXrPatches.TARGET}.")
         println("Uses the recommended patch set for that target")
         println("(unless --patches is also specified, which takes precedence).")
+        println("Galaxy XR defaults to 3552x3840 per eye; --texture-size overrides this.")
         println()
         println("--version=<value>")
         println("Specifies which overport version to use for patching.")
         println("Value also could be \"experimental\" or \"latest\".")
-        println("If not specified, uses latest one. Use \"overport install\" to see available versions.")
+        println("Defaults to 3.4.3-aa54c3f for Galaxy XR, latest otherwise. Use \"overport install\" to list versions.")
+        println()
+        println("--texture-size=WIDTHxHEIGHT | native")
+        println("Override the per-eye texture recommendation in this APK (64..4096 per dimension).")
+        println("Omit to use the target default; native clears the override. Games may apply their own scale.")
+        println("--performance=max | app (Galaxy XR only): default max requests CPU/GPU BOOST and supported 90 Hz.")
+        println("Use app to restore application-controlled performance and refresh rate.")
+        println("--verbose-runtime enables runtime diagnostics in this APK without changing device properties.")
+        println("These explicit options are applied after --patches or the selected target preset.")
         println()
         println("About file name format:")
         println("File name format allows to specify pattern for automatic file name generation.")
@@ -80,6 +93,9 @@ object PatchApplicationCommand : CliCommand() {
         var nameFormat: String? = null,
         var overportVersion: String? = null,
         var target: String? = null,
+        var textureSize: String? = null,
+        var verboseRuntime: Boolean = false,
+        var performance: String? = null,
     )
 
     private fun scanArguments(args: List<String>): ParsedArguments {
@@ -101,6 +117,9 @@ object PatchApplicationCommand : CliCommand() {
                 "--output-name" -> parsed.nameFormat = value
                 "--version" -> parsed.overportVersion = value
                 "--target" -> parsed.target = value
+                "--texture-size" -> parsed.textureSize = value
+                "--verbose-runtime" -> parsed.verboseRuntime = true
+                "--performance" -> parsed.performance = value
             }
         }
 
@@ -111,9 +130,22 @@ object PatchApplicationCommand : CliCommand() {
         val parsed = scanArguments(args)
 
         val inputFile = parsed.inputFile?.let { File(it) } ?: return false
+        if (parsed.performance != null && (parsed.target != GalaxyXrPatches.TARGET || parsed.performance !in listOf("max", "app"))) {
+            println("--performance requires --target=galaxyxr and a value of max or app.")
+            return false
+        }
 
         if (!inputFile.isFile) {
             return false
+        }
+
+        parsed.textureSize?.let {
+            try {
+                TextureSize.parse(it)
+            } catch (e: IllegalArgumentException) {
+                println(e.message)
+                return false
+            }
         }
 
         var outputDir = parsed.outputFile?.let { File(it) } ?: inputFile.parentFile
@@ -124,20 +156,23 @@ object PatchApplicationCommand : CliCommand() {
 
         val workspace = parsed.workspace?.let { File(it) } ?: defaultWorkspace()
 
-        val patches = parsed.patches ?: when (parsed.target) {
+        val patches = (parsed.patches ?: when (parsed.target) {
             GalaxyXrPatches.TARGET -> GalaxyXrPatches.recommended()
             null -> PatchStore.recommended().associate { it.name to listOf() }
             else -> {
                 println("Unknown target '${parsed.target}'. Available targets: ${GalaxyXrPatches.TARGET}. Using the default patch set.")
                 PatchStore.recommended().associate { it.name to listOf() }
             }
-        }
+        }).toMutableMap()
+        parsed.textureSize?.let { patches[PATCH_TEXTURE_SIZE.name] = listOf(it) }
+        if (parsed.verboseRuntime) patches[PATCH_VERBOSE_RUNTIME.name] = emptyList()
+        parsed.performance?.let { patches[PATCH_GALAXYXR_PERFORMANCE.name] = listOf(it) }
 
         val nameFormat = parsed.nameFormat ?: DEFAULT_FORMAT
 
-        val version = parsed.overportVersion ?: "latest"
+        val version = parsed.overportVersion ?: if (parsed.target == GalaxyXrPatches.TARGET) "3.4.3-aa54c3f" else "latest"
 
-        println("overport cli utility, version ${VersionManager.VERSION}")
+        println("overport cli utility, version ${VersionManager.VERSION} (${VersionManager.DISTRIBUTION})")
         println("Input APK: ${inputFile.absolutePath}")
         println("Output directory: ${outputDir.absolutePath}")
         println("Workspace directory: ${workspace.absolutePath}")

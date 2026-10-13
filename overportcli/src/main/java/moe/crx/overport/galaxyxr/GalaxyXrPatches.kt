@@ -1,6 +1,10 @@
 package moe.crx.overport.galaxyxr
 
 import moe.crx.overport.patching.PatchStore
+import moe.crx.overport.patches.PATCH_GALAXYXR_UNITY_GLES
+import moe.crx.overport.patches.PATCH_TEXTURE_SIZE
+import moe.crx.overport.patches.PATCH_GALAXYXR_SWAPCHAIN
+import moe.crx.overport.patches.PATCH_GALAXYXR_PERFORMANCE
 
 /**
  * Samsung Galaxy XR (Android XR) patch target.
@@ -25,5 +29,10 @@ object GalaxyXrPatches {
      */
     fun recommended(): Map<String, List<String>> = PatchStore.recommended().associate { patch ->
         patch.name to if (patch.name == "patch_vr_metadata") listOf(TARGET) else emptyList()
-    }
+    } + mapOf(
+        PATCH_GALAXYXR_UNITY_GLES.name to emptyList(),
+        PATCH_TEXTURE_SIZE.name to listOf("3552x3840"),
+        PATCH_GALAXYXR_SWAPCHAIN.name to emptyList(),
+        PATCH_GALAXYXR_PERFORMANCE.name to emptyList(),
+    )
 }

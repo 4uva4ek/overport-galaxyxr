@@ -1,0 +1,38 @@
+name: Galaxy XR CLI
+on:
+  push:
+    branches: [galaxyxr]
+    tags: ['galaxyxr-v*']
+  pull_request:
+    branches: [galaxyxr]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - name: Install NDK
+        run: sdkmanager 'ndk;29.0.14206865'
+      - name: Build and test adapter
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/29.0.14206865"
+          python3 native/galaxyxr/generate_forwarders.py
+          git diff --exit-code -- native/galaxyxr/forwarders.inc
+          bash native/galaxyxr/build.sh
+          mkdir -p native/galaxyxr/build
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -Wno-missing-field-initializers -Inative/galaxyxr/include native/galaxyxr/test_policy.cpp -ldl -pthread -o native/galaxyxr/build/test_policy
+          native/galaxyxr/build/test_policy
+          native/galaxyxr/build/test_policy app
+      - name: Build CLI
+        run: bash gradlew :overportcli:shadowJar --console=plain
+      - uses: actions/upload-artifact@v4
+        with:
+          name: overport-galaxyxr-cli
+          path: overportcli/build/libs/*-all.jar
