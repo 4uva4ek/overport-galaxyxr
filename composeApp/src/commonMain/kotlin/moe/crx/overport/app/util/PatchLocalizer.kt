@@ -8,6 +8,7 @@ import overportapp.composeapp.generated.resources.*
 
 object PatchLocalizer {
     val LOCALIZED_PATCHES = mapOf(
+        PATCH_VERBOSE_RUNTIME to Res.string.patch_verbose_runtime,
         PATCH_COPY_LIBRARIES to Res.string.patch_copy_libraries,
         PATCH_COPY_OVRPLUGIN_VRAPI to Res.string.patch_copy_ovrplugin_vrapi,
         PATCH_REPLACE_ICON_LABEL to Res.string.patch_replace_icon_label,

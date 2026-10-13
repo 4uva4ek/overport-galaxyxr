@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import moe.crx.overport.app.model.MainViewModel
+import moe.crx.overport.galaxyxr.GalaxyXrPatches
 import moe.crx.overport.utils.CantCheckoutException
 import org.jetbrains.compose.resources.getString
 import overportapp.composeapp.generated.resources.*
@@ -27,7 +28,6 @@ fun PatcherScreen(
     saveFlow: MutableSharedFlow<OutputStream?>,
 ) {
     val scope = rememberCoroutineScope()
-    var inputFile by rememberSaveable { mutableStateOf<Pair<String, InputStream>?>(null) }
     var errorMessage by rememberSaveable { mutableStateOf<Pair<String, String>?>(null) }
     var patches by remember { mutableStateOf<Map<String, List<String>>>(mapOf()) }
 
@@ -35,8 +35,24 @@ fun PatcherScreen(
     val isPatcherVisible = !viewModel.working && viewModel.isApkLoaded()
 
     LaunchedEffect(openFlow) {
-        openFlow.collect {
-            inputFile = it
+        openFlow.collect { selected ->
+            val (name, stream) = selected ?: return@collect
+            if (viewModel.working || viewModel.isApkLoaded()) {
+                stream.close()
+                return@collect
+            }
+            try {
+                viewModel.checkout(GalaxyXrPatches.DEFAULT_RUNTIME, name)
+                stream.use { viewModel.prepare(it) }
+            } catch (_: CantCheckoutException) {
+                viewModel.cancel()
+                errorMessage = getString(Res.string.cant_checkout_title) to getString(Res.string.cant_checkout_message)
+            } catch (ex: Exception) {
+                viewModel.cancel()
+                errorMessage = getString(Res.string.unknown_error) to ex.stackTraceToString()
+            } finally {
+                stream.close()
+            }
         }
     }
 
@@ -44,8 +60,10 @@ fun PatcherScreen(
         saveFlow.collect { stream ->
             val outputStream = stream ?: return@collect
             try {
-                viewModel.process(patches)
-                viewModel.export(outputStream)
+                outputStream.use {
+                    viewModel.process(patches)
+                    viewModel.export(it)
+                }
                 scope.launch {
                     snackbarHostState.showSnackbar(getString(Res.string.apk_file_exported))
                 }
@@ -54,7 +72,6 @@ fun PatcherScreen(
                 errorMessage = getString(Res.string.unknown_error) to ex.stackTraceToString()
             } finally {
                 viewModel.cancel()
-                //outputStream.close()
             }
         }
     }
@@ -79,36 +96,6 @@ fun PatcherScreen(
             onConfirm = {
                 patches = it
                 saveFile(viewModel.patchedName())
-            }
-        )
-    }
-
-    if (inputFile != null && !inProgress) {
-        VersionManagerSheet(
-            viewModel,
-            onCancel = {
-                inputFile?.second?.close()
-                inputFile = null
-            },
-            onSelected = {
-                scope.launch {
-                    val (name, stream) = inputFile ?: return@launch
-                    try {
-                        viewModel.checkout(it, name)
-                        viewModel.prepare(stream)
-                    } catch (_: CantCheckoutException) {
-                        viewModel.cancel()
-                        errorMessage =
-                            getString(Res.string.cant_checkout_title) to getString(Res.string.cant_checkout_message)
-                    } catch (ex: Throwable) {
-                        ex.printStackTrace()
-                        viewModel.cancel()
-                        errorMessage = getString(Res.string.unknown_error) to ex.stackTraceToString()
-                    } finally {
-                        stream.close()
-                        inputFile = null
-                    }
-                }
             }
         )
     }

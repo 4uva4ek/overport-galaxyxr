@@ -10,7 +10,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.unit.dp
 import moe.crx.overport.app.util.PatchLocalizer.localizedPatch
-import moe.crx.overport.patches.PATCH_REPLACE_ICON_LABEL
+import moe.crx.overport.patches.*
+import moe.crx.overport.galaxyxr.GalaxyXrPatches
 import moe.crx.overport.patching.Patch
 import moe.crx.overport.patching.PatchStore
 import org.jetbrains.compose.resources.stringResource
@@ -30,13 +31,19 @@ fun ApplicationInfoContent(
 ) {
     val enabledPatches = remember(applicationPackage) {
         mutableStateMapOf(
-            *PatchStore.recommended().map { it.name to listOf<String>() }.toTypedArray()
+            *GalaxyXrPatches.recommended().entries.map { it.key to it.value }.toTypedArray()
         )
     }
 
     var patchIconArgument by remember(applicationPackage) {
         mutableStateOf("icon")
     }
+    var textureSize by remember(applicationPackage) { mutableStateOf("3552x3840") }
+    var maximumPerformance by remember(applicationPackage) { mutableStateOf(true) }
+    var advanced by remember(applicationPackage) { mutableStateOf(false) }
+    // These patches define the target and are configured through the controls below.
+    val managed = setOf(PATCH_COPY_LIBRARIES, PATCH_GENERATE_CONFIG, PATCH_VR_METADATA,
+        PATCH_GALAXYXR_UNITY_GLES, PATCH_GALAXYXR_SWAPCHAIN, PATCH_GALAXYXR_PERFORMANCE, PATCH_TEXTURE_SIZE)
 
     fun togglePatch(patch: Patch) {
         val checked = enabledPatches.containsKey(patch.name)
@@ -68,7 +75,13 @@ fun ApplicationInfoContent(
 
         Box(modifier = Modifier.weight(1f)) {
             LazyColumn {
-                items(PatchStore.all()) {
+                item {
+                    GalaxyXrOptions(textureSize, { textureSize = it }, maximumPerformance, { maximumPerformance = it })
+                    TextButton(onClick = { advanced = !advanced }, modifier = Modifier.padding(horizontal = 8.dp)) {
+                        Text(stringResource(if (advanced) Res.string.hide_advanced else Res.string.show_advanced))
+                    }
+                }
+                if (advanced) items(PatchStore.all().filter { it !in managed }) {
                     ListItem(
                         headlineContent = {
                             Text(localizedPatch(it))
@@ -140,10 +153,13 @@ fun ApplicationInfoContent(
                     if (enabledPatches.containsKey(PATCH_REPLACE_ICON_LABEL.name)) {
                         enabledPatches[PATCH_REPLACE_ICON_LABEL.name] = listOf(patchIconArgument)
                     }
-                    onConfirm(enabledPatches)
+                    onConfirm(enabledPatches.toMutableMap().apply {
+                        this[PATCH_TEXTURE_SIZE.name] = listOf(textureSize)
+                        this[PATCH_GALAXYXR_PERFORMANCE.name] = listOf(if (maximumPerformance) "max" else "app")
+                    })
                 }
             ) {
-                Text(stringResource(Res.string.action_confirm))
+                Text(stringResource(Res.string.save_patched_apk))
             }
         }
     }

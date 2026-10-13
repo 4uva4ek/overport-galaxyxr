@@ -3,6 +3,7 @@ package moe.crx.overport.app
 import android.annotation.SuppressLint
 import android.graphics.Color
 import android.os.Bundle
+import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -19,6 +20,7 @@ import moe.crx.overport.app.composables.AppContent
 import moe.crx.overport.app.model.MainViewModel
 import java.io.InputStream
 import java.io.OutputStream
+import java.io.File
 
 class MainActivity : ComponentActivity() {
     companion object {
@@ -39,7 +41,8 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("Recycle")
     @Composable
     private fun ActivityContent(activity: MainActivity) {
-        val viewModel: MainViewModel = viewModel { MainViewModel(activity.cacheDir, BitmapIconResizer) }
+        // Signing identity must survive Android cache cleanup.
+        val viewModel: MainViewModel = viewModel { MainViewModel(File(activity.filesDir, "workspace").apply { mkdirs() }, BitmapIconResizer) }
         val openFlow = remember { MutableSharedFlow<Pair<String, InputStream>?>() }
         val saveFlow = remember { MutableSharedFlow<OutputStream?>() }
         val scope = rememberCoroutineScope()
@@ -55,7 +58,9 @@ class MainActivity : ComponentActivity() {
             }
 
             val stream = activity.contentResolver.openInputStream(uri) ?: return@rememberLauncherForActivityResult
-            val fileName = uri.lastPathSegment?.substringAfter(':') ?: "application.apk"
+            val fileName = activity.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                if (it.moveToFirst()) it.getString(0) else null
+            }?.substringAfterLast('/') ?: "application.apk"
 
             scope.launch {
                 openFlow.emit(fileName to stream)
@@ -67,7 +72,7 @@ class MainActivity : ComponentActivity() {
         ) { uri ->
             if (uri == null) {
                 scope.launch {
-                    openFlow.emit(null)
+                    saveFlow.emit(null)
                 }
                 return@rememberLauncherForActivityResult
             }

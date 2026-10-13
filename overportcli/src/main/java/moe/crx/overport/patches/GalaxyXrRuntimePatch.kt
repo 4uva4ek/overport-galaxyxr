@@ -21,7 +21,7 @@ val PATCH_GALAXYXR_PERFORMANCE = Patch("patch_galaxyxr_performance", isRecommend
     var found = false
     selectLibrary("libopenxr_loader_generic.so") {
         if (file.parentFile.name == "arm64-v8a") {
-            val adapter = SwapchainCompatibility::class.java.getResourceAsStream("/galaxyxr/arm64-v8a/libopenxr_loader_generic.so")
+            val adapter = SwapchainCompatibility::class.java.getResourceAsStream("/galaxyxr/arm64-v8a/libopenxr_loader_generic.bin")
                 ?.use { it.readBytes() } ?: error("Missing Galaxy XR adapter: run native/galaxyxr/build.sh before building the CLI")
             // copy_libraries has just restored the original generic loader from the runtime cache.
             // Never rename or modify the system runtime or the cached third-party libraries.

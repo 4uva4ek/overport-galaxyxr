@@ -11,6 +11,6 @@ if [[ ${GXR_INPUT_DIAGNOSTICS:-0} == 1 ]]; then diagnostics=(-DGXR_INPUT_DIAGNOS
     -Werror -Wno-missing-field-initializers -fvisibility-inlines-hidden \
     -static-libstdc++ -shared -fPIC -Iinclude "${diagnostics[@]}" policy.cpp -ldl -llog \
     -Wl,-z,max-page-size=16384 -Wl,-z,defs -Wl,-Bsymbolic \
-    -Wl,--version-script=exports.map -Wl,-soname,libopenxr_loader_generic.so -o "$out/libopenxr_loader_generic.so"
-"$toolchain/llvm-strip" --strip-unneeded "$out/libopenxr_loader_generic.so"
-sha256sum "$out/libopenxr_loader_generic.so"
+    -Wl,--version-script=exports.map -Wl,-soname,libopenxr_loader_generic.so -o "$out/libopenxr_loader_generic.bin"
+"$toolchain/llvm-strip" --strip-unneeded "$out/libopenxr_loader_generic.bin"
+sha256sum "$out/libopenxr_loader_generic.bin"

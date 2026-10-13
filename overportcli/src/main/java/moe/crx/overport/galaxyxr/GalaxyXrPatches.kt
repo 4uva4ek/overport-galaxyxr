@@ -22,6 +22,7 @@ import moe.crx.overport.patches.PATCH_GALAXYXR_PERFORMANCE
  */
 object GalaxyXrPatches {
     const val TARGET = "galaxyxr"
+    const val DEFAULT_RUNTIME = "3.4.3-aa54c3f"
 
     /**
      * All recommended patches, with the VR metadata patch filtered to the

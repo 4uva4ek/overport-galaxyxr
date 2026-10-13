@@ -1,7 +1,10 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
 
 val appVersion: String by project
+val galaxyXr = Properties().apply { rootProject.file("galaxyxr.properties").inputStream().use { load(it) } }
+val galaxyXrVersion = galaxyXr.getProperty("version")
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -53,13 +56,14 @@ kotlin {
 android {
     namespace = "moe.crx.overport.app"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
+    buildToolsVersion = "36.0.0"
 
     defaultConfig {
-        applicationId = "moe.crx.overport.app"
+        applicationId = "moe.crx.overport.galaxyxr"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = appVersion.split('.').run { get(0).toInt() * 1000000 + get(1).toInt() * 1000 + get(2).toInt() }
-        versionName = appVersion
+        versionCode = galaxyXr.getProperty("versionCode").toInt()
+        versionName = galaxyXrVersion
     }
     packaging {
         resources {
@@ -67,8 +71,19 @@ android {
             excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
         }
     }
+    signingConfigs {
+        if (!System.getenv("GXR_KEYSTORE_FILE").isNullOrBlank()) {
+            create("galaxyxr") {
+                storeFile = file(System.getenv("GXR_KEYSTORE_FILE"))
+                storePassword = System.getenv("GXR_KEYSTORE_PASSWORD")
+                keyAlias = "overport-galaxyxr"
+                keyPassword = System.getenv("GXR_KEYSTORE_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("galaxyxr")
             isMinifyEnabled = false
             isShrinkResources = false
             proguardFiles(
@@ -90,6 +105,8 @@ dependencies {
 compose.desktop {
     application {
         mainClass = "moe.crx.overport.app.ComposeMainKt"
+        // Include the runtime modules used by file dialogs, signing and HTTPS.
+        nativeDistributions.includeAllModules = true
 
         buildTypes {
             release {
@@ -101,9 +118,9 @@ compose.desktop {
         }
 
         nativeDistributions {
-            targetFormats(TargetFormat.AppImage)
-            packageName = "overport"
-            packageVersion = appVersion
+            targetFormats(TargetFormat.Msi)
+            packageName = "OverportGalaxyXR"
+            packageVersion = galaxyXrVersion
 
             windows {
                 shortcut = true
@@ -115,7 +132,7 @@ compose.desktop {
                 iconFile.set(file("icons/app-icon.png"))
             }
             macOS {
-                dockName = "overport"
+                dockName = "Overport Galaxy XR"
                 iconFile.set(file("icons/app-icon.icns"))
             }
         }

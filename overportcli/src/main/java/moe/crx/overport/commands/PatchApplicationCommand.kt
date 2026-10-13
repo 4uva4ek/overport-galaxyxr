@@ -170,7 +170,7 @@ object PatchApplicationCommand : CliCommand() {
 
         val nameFormat = parsed.nameFormat ?: DEFAULT_FORMAT
 
-        val version = parsed.overportVersion ?: if (parsed.target == GalaxyXrPatches.TARGET) "3.4.3-aa54c3f" else "latest"
+        val version = parsed.overportVersion ?: if (parsed.target == GalaxyXrPatches.TARGET) GalaxyXrPatches.DEFAULT_RUNTIME else "latest"
 
         println("overport cli utility, version ${VersionManager.VERSION} (${VersionManager.DISTRIBUTION})")
         println("Input APK: ${inputFile.absolutePath}")

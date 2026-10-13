@@ -23,3 +23,4 @@ composeApp/release/output-metadata.json
 workspace
 ignore
 overportcli/src/main/resources/galaxyxr/**/*.so
+overportcli/src/main/resources/galaxyxr/**/*.bin

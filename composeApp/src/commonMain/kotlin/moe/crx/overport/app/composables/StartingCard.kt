@@ -25,6 +25,7 @@ import overportapp.composeapp.generated.resources.Res
 import overportapp.composeapp.generated.resources.decoding_apk
 import overportapp.composeapp.generated.resources.or_drag_and_drop_it
 import overportapp.composeapp.generated.resources.select_apk_to_begin
+import overportapp.composeapp.generated.resources.galaxy_start_hint
 import java.util.*
 
 val isWinter = Calendar.getInstance().get(Calendar.MONTH).let { it == 0 || it == 1 || it == 11 }
@@ -101,6 +102,8 @@ fun StartingCard(
                         .height(64.dp)
                 )
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(stringResource(Res.string.galaxy_start_hint), style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(12.dp))
                     Text(
                         text = stringResource(Res.string.select_apk_to_begin)
                     )

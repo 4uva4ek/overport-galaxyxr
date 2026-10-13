@@ -1,10 +1,25 @@
 # Overport Galaxy XR
 
 Форк [ovrport/app](https://github.com/ovrport/app), поддерживаемый **4uva4ek**.
-Подготавливает APK приложений Quest для Samsung Galaxy XR. Требуется Java 21.
+Подготавливает APK приложений Quest для Samsung Galaxy XR.
+
+## Графическое приложение
+
+В [Releases](https://github.com/4uva4ek/overport-galaxyxr/releases) доступны две версии:
+
+- **Windows:** распакуйте ZIP и запустите `OverportGalaxyXR.exe`. Java уже включена.
+- **Android:** установите APK и откройте **Overport Galaxy XR**.
+
+Выберите APK игры, при необходимости измените разрешение и производительность,
+затем нажмите **Save patched APK**. Дополнительные патчи находятся в **Advanced patches**.
+Проверенный runtime загружается автоматически. Для первой обработки нужен интернет.
+
+## Командная строка
+
+CLI поставляется дополнительно и требует Java 21.
 
 ```sh
-java -jar overport-galaxyxr-0.1.0.jar patch --input=game.apk --target=galaxyxr --output=patched
+java -jar overport-galaxyxr-0.1.0-cli.jar patch --input=game.apk --target=galaxyxr --output=patched
 ```
 
 Для каждого приложения профиль Galaxy XR по умолчанию задаёт:
@@ -23,10 +38,10 @@ java -jar overport-galaxyxr-0.1.0.jar patch --input=game.apk --target=galaxyxr -
 
 ```sh
 # Снизить нагрузку на GPU:
-java -jar overport-galaxyxr-0.1.0.jar patch --input=game.apk --target=galaxyxr --texture-size=2320x2700
+java -jar overport-galaxyxr-0.1.0-cli.jar patch --input=game.apk --target=galaxyxr --texture-size=2320x2700
 
 # Вернуть рекомендации runtime и управление производительностью приложению:
-java -jar overport-galaxyxr-0.1.0.jar patch --input=game.apk --target=galaxyxr --texture-size=native --performance=app
+java -jar overport-galaxyxr-0.1.0-cli.jar patch --input=game.apk --target=galaxyxr --texture-size=native --performance=app
 ```
 
 `native` означает рекомендацию OpenXR runtime (в проверенной конфигурации
@@ -48,8 +63,9 @@ ARM64 Unity 2022.3.33f1; для других версий выводится `NO
 с той же подписью; перезагрузка не отменяет обновление приложения.
 Сохраняйте каталог `--workspace`: в нём находится ключ подписи.
 
-Релиз содержит CLI; графические приложения upstream не являются интерфейсом
-этого релиза. Игровые APK и закрытые сторонние библиотеки не распространяются.
+Не очищайте данные Android-приложения: там хранится ключ подписи обработанных игр.
+Игровые APK и закрытые сторонние библиотеки не распространяются.
+Один [workflow](docs/RELEASING.md) собирает и публикует Windows и Android вместе.
 
 [Проверка на Beat Saber](docs/BEAT-SABER-GALAXYXR-2026-10-13.md) |
 [Исходники и сборка адаптера](native/galaxyxr/README.md)

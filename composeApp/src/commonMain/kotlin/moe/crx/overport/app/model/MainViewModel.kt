@@ -24,7 +24,7 @@ import java.io.OutputStream
 class MainViewModel(val dataDirectory: File, platformIconResizer: IconResizer) : ViewModel() {
     companion object {
         private val json = Json { ignoreUnknownKeys = true }
-        const val RELEASES_URL = "https://api.github.com/repos/ovrport/app/releases"
+        const val RELEASES_URL = "https://api.github.com/repos/4uva4ek/overport-galaxyxr/releases/latest"
     }
 
     init {
@@ -43,11 +43,14 @@ class MainViewModel(val dataDirectory: File, platformIconResizer: IconResizer) :
 
     private suspend fun usePatcher(block: suspend PatcherContext.() -> Unit) {
         working = true
-        withContext(Dispatchers.IO) {
-            patcherState?.block()
+        try {
+            withContext(Dispatchers.IO) {
+                patcherState?.block()
+            }
+        } finally {
+            working = false
+            currentProgress = null
         }
-        working = false
-        currentProgress = null
     }
 
     suspend fun checkout(overportVersion: String, fileName: String) {
@@ -129,8 +132,7 @@ class MainViewModel(val dataDirectory: File, platformIconResizer: IconResizer) :
     fun versionToUpdate(): GithubRelease? {
         return runCatching {
             json
-                .decodeFromString<List<GithubRelease>>(String(download(RELEASES_URL)))
-                .reduceOrNull { left, right -> if (left.publishedAt > right.publishedAt) left else right }
+                .decodeFromString<GithubRelease>(String(download(RELEASES_URL)))
         }.getOrNull()
     }
 }

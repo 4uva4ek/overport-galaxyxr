@@ -37,6 +37,9 @@ native/galaxyxr/build/test_policy app
 The library uses 16 KiB segment alignment and static C++ support. Generated
 libraries are build outputs. `GXR_INPUT_DIAGNOSTICS=1` enables local input
 diagnostics; release builds omit input event logging and the OVRPlugin observer.
+The adapter is packaged as a `.bin` Java resource because Android's resource
+packager filters `.so` files outside JNI directories. APK conversion writes the
+same bytes under the required `.so` name; the patcher never loads this ARM64 library.
 
 The Java checks in `tools/` take independently obtained original libraries to
 verify exact changes, hash rejection and idempotence. No game or closed runtime

@@ -65,11 +65,13 @@ fun AppContent(
                                 contentDescription = null,
                                 modifier = Modifier.size(112.dp, 24.dp)
                             )
+                            Spacer(Modifier.width(12.dp))
+                            Text("Galaxy XR", style = MaterialTheme.typography.titleMedium)
                         }
                     },
                     actions = {
                         val isUpdateAvailable =
-                            versionToUpdate?.name != null && versionToUpdate?.name != VersionManager.VERSION
+                            versionToUpdate?.tagName?.let { it != VersionManager.DISTRIBUTION_TAG } == true
                         FadeVisibility(isUpdateAvailable) {
                             FilledTonalButton(
                                 modifier = Modifier.padding(8.dp, 0.dp),
