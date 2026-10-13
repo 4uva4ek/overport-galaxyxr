@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import moe.crx.overport.app.composables.AppContent
 import moe.crx.overport.app.model.MainViewModel
+import moe.crx.overport.app.update.AndroidAppUpdater
 import java.io.InputStream
 import java.io.OutputStream
 import java.io.File
@@ -85,6 +86,7 @@ class MainActivity : ComponentActivity() {
         }
 
         AppContent(
+            appUpdater = remember { AndroidAppUpdater(activity) },
             viewModel = viewModel,
             openFile = { openApkFile.launch(arrayOf(APK_MIMETYPE)) },
             saveFile = { name -> saveApkFile.launch(name) },

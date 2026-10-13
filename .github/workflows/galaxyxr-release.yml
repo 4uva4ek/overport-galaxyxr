@@ -106,7 +106,9 @@ jobs:
       - name: Build portable Windows application
         shell: pwsh
         run: |
-          ./gradlew.bat :composeApp:createReleaseDistributable --console=plain
+          ./gradlew.bat :composeApp:desktopTest :composeApp:createReleaseDistributable --console=plain
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools/test_windows_updater.ps1
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $version = ((Get-Content galaxyxr.properties | Select-String '^version=').Line -split '=', 2)[1]
           $appDir = Resolve-Path composeApp/build/compose/binaries/main-release/app/OverportGalaxyXR

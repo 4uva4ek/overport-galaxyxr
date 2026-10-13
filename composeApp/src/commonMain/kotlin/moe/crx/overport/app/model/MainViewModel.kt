@@ -7,12 +7,10 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
 import moe.crx.overport.app.decodeBitmap
 import moe.crx.overport.patches.IconResizer
 import moe.crx.overport.patches.PLATFORM_ICON_RESIZER
 import moe.crx.overport.patching.PatcherContext
-import moe.crx.overport.utils.HttpUtil.download
 import moe.crx.overport.versions.VersionManager
 import org.jetbrains.compose.resources.getString
 import overportapp.composeapp.generated.resources.*
@@ -22,11 +20,6 @@ import java.io.InputStream
 import java.io.OutputStream
 
 class MainViewModel(val dataDirectory: File, platformIconResizer: IconResizer) : ViewModel() {
-    companion object {
-        private val json = Json { ignoreUnknownKeys = true }
-        const val RELEASES_URL = "https://api.github.com/repos/4uva4ek/overport-galaxyxr/releases/latest"
-    }
-
     init {
         PLATFORM_ICON_RESIZER = platformIconResizer
     }
@@ -129,10 +122,4 @@ class MainViewModel(val dataDirectory: File, platformIconResizer: IconResizer) :
         return patcherState?.isApkLoaded() ?: false
     }
 
-    fun versionToUpdate(): GithubRelease? {
-        return runCatching {
-            json
-                .decodeFromString<GithubRelease>(String(download(RELEASES_URL)))
-        }.getOrNull()
-    }
 }

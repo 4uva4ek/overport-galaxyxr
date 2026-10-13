@@ -50,6 +50,9 @@ kotlin {
             implementation(libs.kotlinx.coroutines.swing)
             implementation(libs.com.formdev.flatlaf)
         }
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+        }
     }
 }
 

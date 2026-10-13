@@ -10,27 +10,24 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.withContext
-import moe.crx.overport.app.model.GithubRelease
 import moe.crx.overport.app.model.MainViewModel
 import moe.crx.overport.app.theme.OverportTheme
-import moe.crx.overport.versions.VersionManager
+import moe.crx.overport.app.update.AppUpdater
+import moe.crx.overport.app.update.UpdateController
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import overportapp.composeapp.generated.resources.Res
 import overportapp.composeapp.generated.resources.overport
 import overportapp.composeapp.generated.resources.patcher_nav_item
-import overportapp.composeapp.generated.resources.update_available
 import java.io.InputStream
 import java.io.OutputStream
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppContent(
+    appUpdater: AppUpdater,
     viewModel: MainViewModel,
     openFile: () -> Unit,
     saveFile: (String) -> Unit,
@@ -45,14 +42,10 @@ fun AppContent(
                 PatcherScreen(viewModel, snackbarHostState, openFile, saveFile, openFlow, saveFlow)
             }
 
-        var versionToUpdate by remember { mutableStateOf<GithubRelease?>(null) }
-        val urlHandler = LocalUriHandler.current
-
-        LaunchedEffect(Unit) {
-            withContext(Dispatchers.IO) {
-                versionToUpdate = viewModel.versionToUpdate()
-            }
-        }
+        val updater = remember(appUpdater) { UpdateController(appUpdater) }
+        var showUpdates by remember { mutableStateOf(false) }
+        LaunchedEffect(updater) { updater.check() }
+        if (showUpdates) UpdateDialog(updater) { showUpdates = false }
 
         DynamicScaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -70,22 +63,14 @@ fun AppContent(
                         }
                     },
                     actions = {
-                        val isUpdateAvailable =
-                            versionToUpdate?.tagName?.let { it != VersionManager.DISTRIBUTION_TAG } == true
-                        FadeVisibility(isUpdateAvailable) {
-                            FilledTonalButton(
-                                modifier = Modifier.padding(8.dp, 0.dp),
-                                onClick = { versionToUpdate?.htmlUrl?.let { urlHandler.openUri(it) } }
-                            ) {
-                                Icon(
-                                    Icons.Default.CloudDownload,
-                                    contentDescription = null,
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    stringResource(Res.string.update_available),
-                                )
-                            }
+                        FilledTonalButton(
+                            modifier = Modifier.padding(8.dp, 0.dp),
+                            enabled = !viewModel.working && !viewModel.isApkLoaded(),
+                            onClick = { showUpdates = true }
+                        ) {
+                            Icon(Icons.Default.CloudDownload, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(if (updater.available != null) "Update available" else "Updates")
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
