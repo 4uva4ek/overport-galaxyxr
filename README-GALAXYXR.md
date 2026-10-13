@@ -62,6 +62,25 @@ overport patch --input=game.apk --target=galaxyxr
 - Стереопарадокс PFDMR (swap левый/правый eye) — проверить, есть ли он на
   Galaxy XR; если да — повторить `StereoPatch`-подход из PFDMR-форка.
 
+## Проверка (сборка + тестовые APK)
+
+- Сборка: Gradle 8.13 + Temurin JDK 21 → `:overportcli:shadowJar`
+  (`overportcli-1.2.3-all.jar`, ~22 МБ), флаг `--target=galaxyxr` в `--help`.
+- **Singularity** (чистый APK `com.lumi.singularity`): патч прошёл,
+  overport `3.4.3-aa54c3f`; манифест вывода — только Android XR подмножество,
+  вендорных meta-data нет, весь стек либ рунтайма + конфиг на месте.
+- **Beat Saber v1716** (репак «VRP» = старая сборка overport: META-лоадер
+  переименован в `libopenxr_loader.so`, `libOVRPlugin.so` — старый OVR-шим):
+  - патчер заменил весь стек на 3.4.3 (диспетчер + 5 брендовых лоадеров +
+    платформенные лоадеры + `liboverport.config.so`);
+  - `libOVRPlugin.so` остался старый (upstream-патч `patch_copy_ovrplugin_vrapi`
+    заменяет OVR-шим только при наличии `libvrapi.so`, которого в Beat Saber
+    нет) — проверено readelf: старому шиму нужно всего 2 `xr*`-символа из
+    `libopenxr_loader.so`, диспетчер 3.4.3 экспортирует все 56 — несовместимых
+    зависимостей нет. Цепочка: OVR-шим → диспетчер → `ro.product.brand`
+    (samsung) → `generic` (Khronos) → Google OpenXR.
+  - frida-агент репака (`libfrda.so`) не затронут.
+
 ## Форки как референс
 
 - **PFDMR** ([urscaviezel/OVRPort-PFDMR](https://github.com/urscaviezel/OVRPort-PFDMR)) —
