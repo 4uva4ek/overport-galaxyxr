@@ -9,7 +9,7 @@ On Android, install the APK and open **Overport Galaxy XR**.
 Select a game APK, adjust resolution/performance if needed, and save the converted APK.
 
 The Galaxy XR preset applies to every APK you convert: **3552×3840 per eye**,
-**CPU/GPU BOOST** and **90 Hz when supported**, Android XR metadata, a guarded Unity
+**CPU/GPU BOOST** and **90 Hz when supported**, Android XR metadata, a signature-guarded Unity
 EGL compatibility fix, and a fix for Overport's 4096-pixel swapchain abort.
 Games still control their render scale; runtime hints do not guarantee 90 FPS.
 

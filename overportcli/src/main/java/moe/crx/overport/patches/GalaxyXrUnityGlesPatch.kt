@@ -18,7 +18,7 @@ val PATCH_GALAXYXR_UNITY_GLES = Patch(
             UnityGlesCompatibility.Result.ALREADY_APPLIED ->
                 println("\nGalaxy XR EGL: already applied (${file.parentFile.name}).")
             UnityGlesCompatibility.Result.UNSUPPORTED ->
-                println("\nGalaxy XR EGL: NOT APPLIED; unrecognized libunity.so (${file.parentFile.name}), left unchanged.")
+                println("\nGalaxy XR EGL: NOT APPLIED; no unique no-error context signature in libunity.so (${file.parentFile.name}), left unchanged.")
         }
     }
     if (!found) println("\nGalaxy XR EGL: not applicable (no libunity.so).")

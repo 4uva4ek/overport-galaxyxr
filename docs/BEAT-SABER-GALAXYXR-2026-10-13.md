@@ -23,6 +23,10 @@ Unknown Unity binaries are left untouched with an explicit `NOT APPLIED` report.
 Already patched inputs are recognized. The Galaxy preset selects this patch;
 the upstream recommended patch list does not.
 
+Update 2026-10-14: the digest guard was replaced by an instruction-signature search
+that produces the same output for this binary; see
+[JOB-SIMULATOR-GALAXYXR-2026-10-14.md](JOB-SIMULATOR-GALAXYXR-2026-10-14.md).
+
 ## Resolution and performance
 
 The initial runtime recommendation was 1856x2160 per eye. The user confirmed
