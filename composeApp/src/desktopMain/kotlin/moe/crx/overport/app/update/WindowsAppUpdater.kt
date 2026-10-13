@@ -35,6 +35,7 @@ class WindowsAppUpdater(private val exit: () -> Unit) : AppUpdater {
             val powershell = File(System.getenv("SystemRoot"), "System32/WindowsPowerShell/v1.0/powershell.exe")
             val process = ProcessBuilder(powershell.path, "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden",
                 "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded)
+                .directory(stage) // Do not hold the application's directory open while replacing it.
                 .redirectErrorStream(true).redirectOutput(File(stage, "helper.log")).start()
             var attempts = 0
             while (!ready.isFile && process.isAlive && attempts++ < 100) delay(100)
