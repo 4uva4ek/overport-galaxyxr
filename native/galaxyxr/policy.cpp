@@ -79,7 +79,7 @@ static std::string config() {
         path.resize(path.find_last_of('/') + 1);
         FILE* file = fopen((path + "liboverport.galaxyxr.config.so").c_str(), "rb");
         if (!file) return std::string{};
-        char buffer[128]{};
+        char buffer[256]{};
         size_t length = fread(buffer, 1, sizeof(buffer), file);
         fclose(file);
         return std::string(buffer, length);

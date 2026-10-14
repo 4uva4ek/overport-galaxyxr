@@ -40,7 +40,7 @@ val PATCH_GALAXYXR_DISPATCHER = Patch("patch_galaxyxr_dispatcher", isRecommended
     println("\nGalaxy XR: open OpenXR dispatcher ${OpenDispatcher.VERSION} (${OpenDispatcher.sha256(dispatcher)}) replaces the closed Overport dispatcher.")
 }
 
-/** Arguments: performance (max|app), foveation (app|eye), hands (auto|on|off), handmesh (fix|runtime). */
+/** Arguments: performance (max|app), foveation (app|eye), hands (auto|on|off), handmesh (fix|runtime), handframes (meta|runtime), handbind (edited|rebuild). */
 val PATCH_GALAXYXR_PERFORMANCE = Patch("patch_galaxyxr_performance", isRecommended = false) { args ->
     val mode = args.firstOrNull() ?: "max"
     require(mode == "max" || mode == "app") { "Performance mode must be max or app." }
@@ -52,6 +52,16 @@ val PATCH_GALAXYXR_PERFORMANCE = Patch("patch_galaxyxr_performance", isRecommend
     // the adapter rebuilds it unless handmesh=runtime keeps the runtime description.
     val handMesh = args.getOrNull(3) ?: "fix"
     require(handMesh in listOf("fix", "runtime")) { "Hand mesh must be fix or runtime." }
+    // The Galaxy XR runtime rolls the wrist and little-metacarpal joint frames about their bone axes differently
+    // from the Meta runtime whose conventions Quest hand rigs expect; the adapter re-rolls those two frames
+    // (meta) unless handframes=runtime keeps the runtime frames.
+    val handFrames = args.getOrNull(4) ?: "meta"
+    require(handFrames in listOf("meta", "runtime")) { "Hand frames must be meta or runtime." }
+    // handbind=edited (default) replaces the rebuilt bind joints with the hand-tuned table in the adapter (positions,
+    // rolls and tip orientations exported from the hand map, tuned on SM-I610); rebuild keeps the bind pose derived
+    // from the runtime data only.
+    val handBind = args.getOrNull(5) ?: "edited"
+    require(handBind in listOf("rebuild", "edited")) { "Hand bind must be rebuild or edited." }
     // Android XR delivers hand joints only after the runtime HAND_TRACKING permission is granted.
     // auto requests it only for games that declare Quest hand tracking in their manifest.
     val handTracking = hands == "on" || (hands == "auto" && declaresQuestHandTracking())
@@ -69,7 +79,7 @@ val PATCH_GALAXYXR_PERFORMANCE = Patch("patch_galaxyxr_performance", isRecommend
             writeBytes(adapter)
             val handsValue = if (handTracking) "on" else "off"
             file.resolveSibling("liboverport.galaxyxr.config.so")
-                .writeText("performance=$mode\nfoveation=$foveation\nhands=$handsValue\nhandmesh=$handMesh\n")
+                .writeText("performance=$mode\nfoveation=$foveation\nhands=$handsValue\nhandmesh=$handMesh\nhandframes=$handFrames\nhandbind=$handBind\n")
             found = true
         }
     }
@@ -86,6 +96,8 @@ val PATCH_GALAXYXR_PERFORMANCE = Patch("patch_galaxyxr_performance", isRecommend
     }
     println(if (mode == "max") "\nGalaxy XR: request CPU/GPU BOOST and supported 90 Hz for every XR session." else "\nGalaxy XR: application-controlled performance and refresh rate.")
     println(if (handMesh == "fix") "Galaxy XR: hand skeleton rebuilt from the runtime hand mesh." else "Galaxy XR: runtime hand mesh skeleton kept as is (handmesh=runtime).")
+    println(if (handBind == "edited") "Galaxy XR: hand bind pose replaced with the hand-tuned table (handbind=edited)." else "Galaxy XR: hand bind pose derived from the runtime data only (handbind=rebuild).")
+    println(if (handFrames == "meta") "Galaxy XR: wrist and little-metacarpal joint frames re-rolled to the Meta conventions." else "Galaxy XR: runtime hand joint frames kept as is (handframes=runtime).")
     println(when {
         handTracking -> "Galaxy XR: hand tracking permission is requested at launch (hands=$hands)."
         hands == "off" -> "Galaxy XR: hand tracking permission is not requested (hands=off)."

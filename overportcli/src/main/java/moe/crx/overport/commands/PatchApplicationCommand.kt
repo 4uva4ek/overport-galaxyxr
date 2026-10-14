@@ -71,6 +71,10 @@ object PatchApplicationCommand : CliCommand() {
         println("--hands=auto | on | off (Galaxy XR only): request the Android XR hand tracking permission at launch.")
         println("Default auto requests it only when the game declares Quest hand tracking; on forces it, off never asks.")
         println("--hand-mesh=fix | runtime (Galaxy XR only): fix (default) rebuilds the incomplete runtime hand skeleton for OVRPlugin.")
+        println("--hand-frames=meta | runtime (Galaxy XR only): meta (default) re-rolls the wrist and little-metacarpal joint frames")
+        println("to the Meta runtime conventions that Quest hand rigs expect; runtime keeps the Galaxy XR frames.")
+        println("--hand-bind=edited | rebuild (Galaxy XR only): edited (default) uses the hand-tuned bind table built into the adapter;")
+        println("rebuild derives the bind pose from the runtime data only.")
         println("--dispatcher=open | overport (Galaxy XR only): open (default) packages the open OpenXR dispatcher")
         println("(openxr-dispatcher-open ${moe.crx.overport.galaxyxr.OpenDispatcher.VERSION}) as libopenxr_loader.so;")
         println("overport keeps the closed Overport dispatcher with the hash-guarded swapchain abort fix.")
@@ -106,6 +110,8 @@ object PatchApplicationCommand : CliCommand() {
         var foveation: String? = null,
         var hands: String? = null,
         var handMesh: String? = null,
+        var handFrames: String? = null,
+        var handBind: String? = null,
         var dispatcher: String? = null,
     )
 
@@ -134,6 +140,8 @@ object PatchApplicationCommand : CliCommand() {
                 "--foveation" -> parsed.foveation = value
                 "--hands" -> parsed.hands = value
                 "--hand-mesh" -> parsed.handMesh = value
+                "--hand-frames" -> parsed.handFrames = value
+                "--hand-bind" -> parsed.handBind = value
                 "--dispatcher" -> parsed.dispatcher = value
             }
         }
@@ -159,6 +167,14 @@ object PatchApplicationCommand : CliCommand() {
         }
         if (parsed.handMesh != null && (parsed.target != GalaxyXrPatches.TARGET || parsed.handMesh !in listOf("fix", "runtime"))) {
             println("--hand-mesh requires --target=galaxyxr and a value of fix or runtime.")
+            return false
+        }
+        if (parsed.handFrames != null && (parsed.target != GalaxyXrPatches.TARGET || parsed.handFrames !in listOf("meta", "runtime"))) {
+            println("--hand-frames requires --target=galaxyxr and a value of meta or runtime.")
+            return false
+        }
+        if (parsed.handBind != null && (parsed.target != GalaxyXrPatches.TARGET || parsed.handBind !in listOf("rebuild", "edited"))) {
+            println("--hand-bind requires --target=galaxyxr and a value of edited or rebuild.")
             return false
         }
         if (parsed.dispatcher != null && (parsed.target != GalaxyXrPatches.TARGET || parsed.dispatcher !in GalaxyXrPatches.DISPATCHERS)) {
@@ -197,8 +213,9 @@ object PatchApplicationCommand : CliCommand() {
         }).toMutableMap()
         parsed.textureSize?.let { patches[PATCH_TEXTURE_SIZE.name] = listOf(it) }
         if (parsed.verboseRuntime) patches[PATCH_VERBOSE_RUNTIME.name] = emptyList()
-        if (parsed.performance != null || parsed.foveation != null || parsed.hands != null || parsed.handMesh != null) {
-            patches[PATCH_GALAXYXR_PERFORMANCE.name] = listOf(parsed.performance ?: "max", parsed.foveation ?: "app", parsed.hands ?: "auto", parsed.handMesh ?: "fix")
+        if (parsed.performance != null || parsed.foveation != null || parsed.hands != null || parsed.handMesh != null || parsed.handFrames != null || parsed.handBind != null) {
+            patches[PATCH_GALAXYXR_PERFORMANCE.name] = listOf(parsed.performance ?: "max", parsed.foveation ?: "app", parsed.hands ?: "auto",
+                parsed.handMesh ?: "fix", parsed.handFrames ?: "meta", parsed.handBind ?: "edited")
         }
         parsed.dispatcher?.let { GalaxyXrPatches.selectDispatcher(patches, it) }
 

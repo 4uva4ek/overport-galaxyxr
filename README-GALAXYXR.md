@@ -21,7 +21,7 @@
 CLI поставляется дополнительно и требует Java 21.
 
 ```sh
-java -jar overport-galaxyxr-0.2.0-cli.jar patch --input=game.apk --target=galaxyxr --output=patched
+java -jar overport-galaxyxr-0.3.0-cli.jar patch --input=game.apk --target=galaxyxr --output=patched
 ```
 
 Для каждого приложения профиль Galaxy XR по умолчанию задаёт:
@@ -46,16 +46,16 @@ java -jar overport-galaxyxr-0.2.0-cli.jar patch --input=game.apk --target=galaxy
 
 ```sh
 # Снизить нагрузку на GPU:
-java -jar overport-galaxyxr-0.2.0-cli.jar patch --input=game.apk --target=galaxyxr --texture-size=2320x2700
+java -jar overport-galaxyxr-0.3.0-cli.jar patch --input=game.apk --target=galaxyxr --texture-size=2320x2700
 
 # Вернуть рекомендации runtime и управление производительностью приложению:
-java -jar overport-galaxyxr-0.2.0-cli.jar patch --input=game.apk --target=galaxyxr --texture-size=native --performance=app
+java -jar overport-galaxyxr-0.3.0-cli.jar patch --input=game.apk --target=galaxyxr --texture-size=native --performance=app
 
 # Трекинг рук: on запрашивает разрешение всегда, off никогда (по умолчанию auto):
-java -jar overport-galaxyxr-0.2.0-cli.jar patch --input=game.apk --target=galaxyxr --hands=off
+java -jar overport-galaxyxr-0.3.0-cli.jar patch --input=game.apk --target=galaxyxr --hands=off
 
 # Вернуть закрытый диспетчер Overport 3.4.3 с исправлением ограничения swapchain:
-java -jar overport-galaxyxr-0.2.0-cli.jar patch --input=game.apk --target=galaxyxr --dispatcher=overport
+java -jar overport-galaxyxr-0.3.0-cli.jar patch --input=game.apk --target=galaxyxr --dispatcher=overport
 ```
 
 Трекинг рук Android XR требует runtime-разрешения `android.permission.HAND_TRACKING`.
@@ -71,6 +71,18 @@ java -jar overport-galaxyxr-0.2.0-cli.jar patch --input=game.apk --target=galaxy
 систему, которую ожидает OVRPlugin (как у runtime Meta); вершины меша только
 поворачиваются вместе со скелетом.
 `--hand-mesh=runtime` оставляет описание runtime без изменений.
+Кроме того, runtime Galaxy XR крутит два сустава вокруг их осей иначе, чем runtime Meta,
+под который сделаны риги рук Quest: +Y запястья отклонён на 13° к большому пальцу от
+нормали ладони (у сустава palm 4°), а пястная кость мизинца повёрнута на 5° к большому
+пальцу там, где кость Pinky0 скелета Meta повёрнута на 24° в сторону мизинца. Адаптер
+берёт крен запястья от сустава palm (позиция и ось Z не меняются, пальцы остаются на
+месте) и поворачивает пястную кость мизинца на 24° (`--hand-frames=meta`);
+`--hand-frames=runtime` оставляет кадры runtime.
+Поверх этого адаптер подставляет вручную подобранную bind-позу (`--hand-bind=edited`, по
+умолчанию): таблицу из 26 суставов левой руки (позиции, крен и ориентация кончиков), снятую
+на SM-I610 в карте рук при сравнении живых суставов с эталоном Meta; правая рука зеркальна.
+Кадры пальцев пересчитываются вдоль костей, вершины меша и живые суставы не меняются.
+`--hand-bind=rebuild` оставляет bind-позу, построенную только из данных runtime.
 Проверено на Job Simulator 1.4.0.6515 и SM-I610.
 
 `native` означает рекомендацию OpenXR runtime (в проверенной конфигурации

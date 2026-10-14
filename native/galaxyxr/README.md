@@ -77,8 +77,13 @@ diagnostics; release builds omit input event logging and the OVRPlugin observer.
 `GXR_HAND_DIAGNOSTICS=1` logs hand tracker creation, the rebuilt
 `XR_FB_hand_tracking_mesh` skeleton and sampled joint frames (`OverportGXR: HAND`);
 release builds omit it. `hand_tracking.inc` always rebuilds the runtime hand
-skeleton unless the generated configuration contains `handmesh=runtime`; the host
-test replays the SM-I610 runtime data captured on 2026-10-14.
+skeleton unless the generated configuration contains `handmesh=runtime`, and
+re-rolls the live wrist (from the palm joint) and little-metacarpal frames to the
+Meta conventions unless it contains `handframes=runtime`, and replaces the bind
+joints with the hand-tuned table (`kEditedBind`) when it contains `handbind=edited`
+(the CLI default; `handbind=rebuild` keeps the derived bind pose). The host test
+replays the SM-I610 runtime data captured on 2026-10-14; `test_hand_tracking edited`
+checks the table path for both hands.
 The adapter is packaged as a `.bin` Java resource because Android's resource
 packager filters `.so` files outside JNI directories. APK conversion writes the
 same bytes under the required `.so` name; the patcher never loads this ARM64 library.

@@ -1,5 +1,28 @@
 # Changelog
 
+## Galaxy XR 0.3.0 — 2026-10-14
+
+- Hand-tuned bind pose (`--hand-bind=edited`, default): the adapter replaces the rebuilt
+  `XR_FB_hand_tracking_mesh` bind joints with a built-in table of 26 left-hand joints (positions,
+  rolls and finger-tip orientations tuned by hand on SM-I610 against the live joints and the
+  Meta rest pose; the right hand is mirrored). Finger frames are re-derived along the bones with
+  the existing chain rules; parents, radii, mesh vertices and the live joints are unchanged.
+  `--hand-bind=rebuild` keeps the bind pose derived from the runtime data only.
+  `test_hand_tracking edited` covers both hands. The table was produced with the ANTR hand map
+  (`tools/ANTR-hand-map` in the workspace), which overlays the live, bind, OVRPlugin and Meta
+  skeletons and exports the edited joints.
+- Hand joint frames (`--hand-frames=meta`, default): the Galaxy XR runtime rolls two
+  `XR_EXT_hand_tracking` joint frames about their bone axes differently from the Meta runtime
+  whose conventions Quest hand rigs expect. Captured SM-I610 data: the wrist +Y is rolled
+  13 degrees toward the thumb from the palm-plane normal while the palm joint is rolled 4 degrees,
+  and the finger twists OVRPlugin hands to the game match the Meta OVR skeleton rest pose
+  (Oculus Integration `OVRSkeletonData`) within 2 degrees only when measured against the palm
+  joint; the little metacarpal is rolled 5 degrees toward the thumb where the Meta `Pinky0` bone
+  rolls 24 degrees away from it. The adapter now takes the wrist roll from the palm joint (position
+  and Z axis unchanged, so every finger keeps its tracked world orientation and only the palm and
+  hypothenar parts of a hand rig move) and rolls the little metacarpal 24 degrees toward the ulnar
+  side. `--hand-frames=runtime` keeps the runtime frames. Host test extended.
+
 ## Galaxy XR 0.2.0 — 2026-10-14
 
 - Open OpenXR dispatcher: the Galaxy XR preset now packages

@@ -21,6 +21,8 @@ static std::unordered_map<XrHandTrackerEXT, HandSample> handSamples;
 #define HAND_HOOK(fn, var) if (!strcmp(name, #fn)) { var = reinterpret_cast<PFN_##fn>(*function); *function = reinterpret_cast<PFN_xrVoidFunction>(&fn); }
 
 static bool handMeshFix() { static bool enabled = config().find("handmesh=runtime\n") == std::string::npos; return enabled; }
+static bool handFramesFix() { static bool enabled = config().find("handframes=runtime\n") == std::string::npos; return enabled; }
+static bool handBindEdited() { static bool enabled = config().find("handbind=edited\n") != std::string::npos; return enabled; }
 
 namespace handmath {
 static XrVector3f sub(const XrVector3f& a, const XrVector3f& b) { return {a.x - b.x, a.y - b.y, a.z - b.z}; }
@@ -61,6 +63,37 @@ static XrQuaternionf boneFrame(const XrVector3f& joint, const XrVector3f& child,
 static float clamp(float v, float lo, float hi) { return v < lo ? lo : v > hi ? hi : v; }
 }
 
+// Two live joint frames of the Galaxy XR runtime are rolled about their bone axes differently from the Meta runtime,
+// whose conventions Quest hand rigs were built against (OVR skeleton rest pose, Oculus Integration OVRSkeletonData):
+// captured SM-I610 data rolls the wrist +Y 13 degrees toward the thumb from the palm-plane normal while the palm
+// joint rolls 4 degrees and the finger joints fan exactly like the Meta rest twists only when measured against the
+// palm joint; the little metacarpal +Y rolls 5 degrees toward the thumb where the Meta Pinky0 bone rolls 24 degrees
+// away from it. OVRPlugin derives the hand root from the wrist and every bone rotation relative to its parent joint,
+// so the wrist takes its roll from the palm joint (position and Z axis unchanged; the fingers keep their world
+// orientation) and the little metacarpal is rolled toward the ulnar side. Disabled by handframes=runtime.
+static const float kLittleMetacarpalRoll = 24.0f * 3.14159265f / 180.0f;
+static void alignHandFrames(XrHandJointLocationEXT* joints) {
+    using namespace handmath;
+    const uint64_t needed = XR_SPACE_LOCATION_ORIENTATION_VALID_BIT | XR_SPACE_LOCATION_POSITION_VALID_BIT;
+    auto& wrist = joints[XR_HAND_JOINT_WRIST_EXT];
+    const auto& palm = joints[XR_HAND_JOINT_PALM_EXT];
+    if ((wrist.locationFlags & needed) != needed || !(palm.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT)) return;
+    XrVector3f z = rotate(wrist.pose.orientation, {0, 0, 1});
+    XrVector3f palmUp = rotate(palm.pose.orientation, {0, 1, 0});
+    XrVector3f y = sub(palmUp, scale(z, dot(palmUp, z)));
+    if (length(y) < 0.2f) return;
+    y = normalize(y);
+    wrist.pose.orientation = fromAxes(cross(y, z), y, z);
+    auto& meta = joints[XR_HAND_JOINT_LITTLE_METACARPAL_EXT];
+    const auto& prox = joints[XR_HAND_JOINT_LITTLE_PROXIMAL_EXT];
+    if ((meta.locationFlags & needed) != needed || !(prox.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT)) return;
+    if (length(sub(prox.pose.position, meta.pose.position)) < 0.01f) return;
+    // The ulnar side is where the little finger lies: -X of the wrist frame on the left hand, +X on the right.
+    float ulnar = dot(sub(prox.pose.position, wrist.pose.position), rotate(wrist.pose.orientation, {1, 0, 0})) < 0 ? -1.0f : 1.0f;
+    XrVector3f up = rotate(wrist.pose.orientation, {ulnar * std::sin(kLittleMetacarpalRoll), std::cos(kLittleMetacarpalRoll), 0});
+    meta.pose.orientation = boneFrame(meta.pose.position, prox.pose.position, up);
+}
+
 // Standard XR_EXT_hand_tracking hierarchy. The Overport dispatcher clamps parent values above 25 to the palm
 // before OVRPlugin sees them, so the wrist lists the palm as its parent explicitly and the palm bind pose is
 // kept identical to the wrist; OVRPlugin then resolves the wrist bone against an identity parent.
@@ -75,6 +108,70 @@ static const float kHandJointRadii[XR_HAND_JOINT_COUNT_EXT] = {
 // converted wrist and parent poses; that SIMD code only yields clean unit results when the wrist bind orientation
 // equals C, as in the Meta runtime. The rebuilt bind pose is therefore expressed in that root frame.
 static const XrQuaternionf kOvrHandBasis[2] = {{0.70710677f, 0.0f, -0.70710677f, 0.0f}, {0.0f, 0.70710677f, 0.0f, 0.70710677f}};
+
+// Hand-edited bind pose (handbind=edited): left-hand joints in the wrist frame of the runtime bind data (metres, xyzw),
+// exported from the ANTR hand map on 2026-10-14 after visual tuning against the live joints and the Meta rest pose.
+// Only the positions and the roll (+Y direction) of each joint are used; the orientations are rebuilt with the chain
+// rules of rebuildHandSkeleton so every frame keeps +Z along its bone, except the finger tips, which keep the table
+// orientation. The right hand mirrors X. Enabled by handbind=edited (the CLI default), off with handbind=rebuild.
+static const float kEditedBind[XR_HAND_JOINT_COUNT_EXT][7] = {
+    {0.00000f, 0.00000f, 0.00000f, 0.00000f, 0.00000f, 0.00000f, 1.00000f},  // palm
+    {0.00000f, 0.00000f, 0.00000f, 0.00000f, 0.00000f, 0.00000f, 1.00000f},  // wrist
+    {0.03070f, 0.00510f, -0.04300f, 0.00515f, -0.33431f, 0.03920f, 0.94163f},  // th_meta
+    {0.05080f, 0.00630f, -0.06790f, -0.02848f, -0.28867f, 0.01958f, 0.95680f},  // th_prox
+    {0.06400f, 0.00530f, -0.08760f, -0.02845f, -0.28867f, 0.01949f, 0.95681f},  // th_dist
+    {0.07700f, 0.00180f, -0.11260f, -0.08681f, -0.28932f, 0.00183f, 0.95329f},  // th_tip
+    {0.01210f, 0.00220f, -0.02880f, 0.02318f, -0.08067f, 0.10494f, 0.99093f},  // ix_meta
+    {0.02370f, 0.00690f, -0.10280f, -0.02985f, -0.05350f, 0.00304f, 0.99812f},  // ix_prox
+    {0.02810f, 0.00450f, -0.14350f, -0.07414f, -0.04606f, -0.00013f, 0.99618f},  // ix_inter
+    {0.03010f, 0.00130f, -0.16470f, -0.07414f, -0.04606f, -0.00013f, 0.99618f},  // ix_dist
+    {0.03200f, -0.00220f, -0.18420f, -0.07414f, -0.04606f, -0.00013f, 0.99618f},  // ix_tip
+    {-0.00010f, 0.00130f, -0.02930f, 0.02430f, -0.00869f, 0.07824f, 0.99660f},  // md_meta
+    {0.00100f, 0.00510f, -0.10530f, -0.03110f, -0.02641f, 0.01914f, 0.99898f},  // md_prox
+    {0.00330f, 0.00240f, -0.14870f, -0.07104f, -0.02468f, -0.01864f, 0.99699f},  // md_inter
+    {0.00430f, -0.00070f, -0.17020f, -0.07104f, -0.02466f, -0.01843f, 0.99700f},  // md_dist
+    {0.00570f, -0.00420f, -0.19000f, -0.07104f, -0.02466f, -0.01843f, 0.99700f},  // md_tip
+    {-0.01160f, -0.00050f, -0.02610f, 0.01219f, 0.04047f, 0.05171f, 0.99777f},  // rg_meta
+    {-0.01760f, 0.00100f, -0.09820f, -0.02231f, 0.01671f, 0.00409f, 0.99960f},  // rg_prox
+    {-0.01880f, -0.00070f, -0.13540f, -0.06735f, 0.01084f, -0.05725f, 0.99603f},  // rg_inter
+    {-0.01960f, -0.00420f, -0.16140f, -0.06735f, 0.01084f, -0.05725f, 0.99603f},  // rg_dist
+    {-0.01950f, -0.01010f, -0.18110f, -0.19678f, 0.01823f, -0.05535f, 0.97871f},  // rg_tip
+    {-0.02150f, -0.00300f, -0.02100f, 0.00241f, 0.11355f, 0.05072f, 0.99223f},  // lt_meta
+    {-0.03730f, -0.00350f, -0.08920f, -0.01783f, 0.05619f, 0.01223f, 0.99819f},  // lt_prox
+    {-0.04120f, -0.00480f, -0.12360f, -0.03650f, 0.03867f, 0.00764f, 0.99856f},  // lt_inter
+    {-0.04250f, -0.00600f, -0.14060f, -0.03649f, 0.03867f, 0.00768f, 0.99856f},  // lt_dist
+    {-0.04320f, -0.00880f, -0.16140f, -0.12339f, 0.03785f, 0.01102f, 0.99158f},  // lt_tip
+};
+static void applyEditedBind(XrPosef* bind, const XrVector3f& wrist, const XrQuaternionf& wristQ, int side) {
+    using namespace handmath;
+    const float mirror = side == 1 ? -1.0f : 1.0f;
+    XrVector3f p[XR_HAND_JOINT_COUNT_EXT], up[XR_HAND_JOINT_COUNT_EXT];
+    for (uint32_t i = 0; i < XR_HAND_JOINT_COUNT_EXT; ++i) {
+        const float* e = kEditedBind[i];
+        p[i] = add(wrist, rotate(wristQ, {mirror * e[0], e[1], e[2]}));
+        XrVector3f u = rotate(XrQuaternionf{e[3], e[4], e[5], e[6]}, {0, 1, 0});
+        up[i] = rotate(wristQ, {mirror * u.x, u.y, u.z});
+    }
+    struct Chain { int meta, prox, inter, dist, tip; };
+    const Chain chains[] = {{2, 3, -1, 4, 5}, {6, 7, 8, 9, 10}, {11, 12, 13, 14, 15}, {16, 17, 18, 19, 20}, {21, 22, 23, 24, 25}};
+    for (const auto& c : chains) {
+        const int beforeDist = c.inter >= 0 ? c.inter : c.prox;
+        bind[c.meta] = {boneFrame(p[c.meta], p[c.prox], up[c.meta]), p[c.meta]};
+        bind[c.prox] = {boneFrame(p[c.prox], p[c.inter >= 0 ? c.inter : c.dist], up[c.prox]), p[c.prox]};
+        if (c.inter >= 0) bind[c.inter] = {boneFrame(p[c.inter], p[c.dist], up[c.inter]), p[c.inter]};
+        XrVector3f forward = normalize(sub(p[c.dist], p[beforeDist]));
+        bind[c.dist] = {boneFrame(p[c.dist], add(p[c.dist], forward), up[c.dist]), p[c.dist]};
+        // Tips are leaves, so their orientation is taken from the table as is (mirrored across X for the right hand)
+        // instead of copying the distal frame; this lets the map tilt the tip bones of the rig.
+        const float* e = kEditedBind[c.tip];
+        XrQuaternionf tq{e[3], mirror * e[4], mirror * e[5], e[6]};
+        float n = std::sqrt(tq.x * tq.x + tq.y * tq.y + tq.z * tq.z + tq.w * tq.w);
+        if (n > 1e-6f) { tq.x /= n; tq.y /= n; tq.z /= n; tq.w /= n; } else tq = {0, 0, 0, 1};
+        bind[c.tip] = {mul(wristQ, tq), p[c.tip]};
+    }
+    bind[XR_HAND_JOINT_WRIST_EXT] = {wristQ, wrist};
+    bind[XR_HAND_JOINT_PALM_EXT] = bind[XR_HAND_JOINT_WRIST_EXT];
+}
 
 // Rebuild parents, radii and a consistent bind pose in place. Only the runtime positions of the wrist,
 // the thumb metacarpal and the proximal/intermediate/distal joints are trusted; every orientation is derived
@@ -133,11 +230,12 @@ static void rebuildHandSkeleton(XrHandTrackingMeshFB& mesh, const HandSample* li
         float r = live ? live->joints[i].radius : 0.0f;
         mesh.jointRadii[i] = r > 0.001f && r < 0.1f ? r : kHandJointRadii[i];
     }
-    // Root frame expected by OVRPlugin: the whole bind pose, vertices and normals rotate by C of this hand.
     if (side < 0) {
         float thumbSide = dot(sub(bind[2].position, wrist), rotate(wristQ, {1, 0, 0}));
         side = thumbSide >= 0 ? 0 : 1;
     }
+    if (handBindEdited()) applyEditedBind(bind, wrist, wristQ, side);
+    // Root frame expected by OVRPlugin: the whole bind pose, vertices and normals rotate by C of this hand.
     const XrQuaternionf basis = kOvrHandBasis[side == 1 ? 1 : 0];
     for (uint32_t i = 0; i < XR_HAND_JOINT_COUNT_EXT; ++i) {
         bind[i].orientation = mul(basis, bind[i].orientation);
@@ -257,6 +355,11 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrDestroyHandTrackerEXT(XrHandTrackerE
 extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrLocateHandJointsEXT(XrHandTrackerEXT tracker, const XrHandJointsLocateInfoEXT* info, XrHandJointLocationsEXT* locations) {
     auto result = origLocateHandJoints ? origLocateHandJoints(tracker, info, locations) : XR_ERROR_FUNCTION_UNSUPPORTED;
     if (XR_SUCCEEDED(result) && locations && locations->isActive && locations->jointLocations && locations->jointCount >= XR_HAND_JOINT_COUNT_EXT) {
+        if (handFramesFix()) {
+            alignHandFrames(locations->jointLocations);
+            static bool logged = false;
+            if (!logged) { logged = true; LOG("Hand joint frames aligned to the Meta conventions: wrist roll from the palm joint, little metacarpal rolled %.0f deg", kLittleMetacarpalRoll * 180.0f / 3.14159265f); }
+        }
         std::lock_guard<std::mutex> lock(handMutex);
         auto it = handSamples.find(tracker);
         if (it != handSamples.end()) {
@@ -301,7 +404,7 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrGetHandMeshFB(XrHandTrackerEXT track
         { std::lock_guard<std::mutex> lock(handMutex); auto it = handSamples.find(tracker); if (it != handSamples.end()) live = it->second; }
         rebuildHandSkeleton(*mesh, live.valid ? &live : nullptr, live.side);
         fixed = true;
-        LOG("Hand skeleton rebuilt from runtime bind joints (live sample=%d)", live.valid);
+        LOG("Hand skeleton rebuilt from runtime bind joints (live sample=%d, edited bind=%d)", live.valid, handBindEdited());
     }
 #ifdef GXR_HAND_DIAGNOSTICS
     if (mesh) {

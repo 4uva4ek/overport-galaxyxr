@@ -37,6 +37,7 @@ jobs:
           native/galaxyxr/build/test_policy app
           g++ -std=c++17 -O2 -Wall -Wextra -Werror -Wno-missing-field-initializers -Inative/galaxyxr/include native/galaxyxr/test_hand_tracking.cpp -ldl -pthread -o native/galaxyxr/build/test_hand_tracking
           native/galaxyxr/build/test_hand_tracking
+          native/galaxyxr/build/test_hand_tracking edited
       - name: Build CLI
         run: bash gradlew :overportcli:shadowJar --console=plain
       - uses: actions/upload-artifact@v4

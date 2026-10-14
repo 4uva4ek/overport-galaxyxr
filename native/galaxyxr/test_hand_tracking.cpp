@@ -87,8 +87,8 @@ static XrResult mockLocate(XrHandTrackerEXT, const XrHandJointsLocateInfoEXT*, X
     }
     return XR_SUCCESS;
 }
-static XrResult mockCreateTracker(XrSession, const XrHandTrackerCreateInfoEXT*, XrHandTrackerEXT* tracker) {
-    *tracker = reinterpret_cast<XrHandTrackerEXT>(7); return XR_SUCCESS;
+static XrResult mockCreateTracker(XrSession, const XrHandTrackerCreateInfoEXT* info, XrHandTrackerEXT* tracker) {
+    *tracker = reinterpret_cast<XrHandTrackerEXT>(info && info->hand == XR_HAND_RIGHT_EXT ? 8 : 7); return XR_SUCCESS;
 }
 
 // Fraction of the way from the wrist to the target at which the point projects (0 at the wrist).
@@ -103,11 +103,59 @@ static float angleDeg(const XrVector3f& a, const XrVector3f& b) {
     float c = dot(normalize(a), normalize(b));
     return std::acos(c > 1 ? 1 : c < -1 ? -1 : c) * 180.0f / 3.14159265f;
 }
-static XrHandTrackingMeshFB queryMesh() {
+static XrHandTrackingMeshFB queryMesh(uintptr_t handle = 7) {
     XrHandTrackingMeshFB mesh{XR_TYPE_HAND_TRACKING_MESH_FB};
     mesh.jointCapacityInput = 26; mesh.jointBindPoses = bindPoses; mesh.jointRadii = radii; mesh.jointParents = parents;
-    assert(XR_SUCCEEDED(xrGetHandMeshFB(reinterpret_cast<XrHandTrackerEXT>(7), &mesh)));
+    assert(XR_SUCCEEDED(xrGetHandMeshFB(reinterpret_cast<XrHandTrackerEXT>(handle), &mesh)));
     return mesh;
+}
+// handbind=edited: the bind joints come from the hand-tuned table (right hand mirrored), every finger frame keeps +Z along
+// its bone toward the parent, the table roll is preserved, parents and radii are still rebuilt. Run as `test_hand_tracking edited`.
+static int runEdited() {
+    using namespace handmath;
+    testConfig += "handbind=edited\n";
+    origGetHandMesh = mockGetHandMesh; origLocateHandJoints = mockLocate; origCreateHandTracker = mockCreateTracker;
+    for (int side = 0; side < 2; ++side) {
+        XrHandTrackerEXT tracker = XR_NULL_HANDLE;
+        XrHandTrackerCreateInfoEXT create{XR_TYPE_HAND_TRACKER_CREATE_INFO_EXT, nullptr, side == 0 ? XR_HAND_LEFT_EXT : XR_HAND_RIGHT_EXT, XR_HAND_JOINT_SET_DEFAULT_EXT};
+        assert(XR_SUCCEEDED(xrCreateHandTrackerEXT(XR_NULL_HANDLE, &create, &tracker)));
+        XrHandTrackingMeshFB mesh = queryMesh(side == 0 ? 7 : 8);
+        const XrPosef* b = mesh.jointBindPoses;
+        const XrQuaternionf C = kOvrHandBasis[side];
+        const float mirror = side == 0 ? 1.0f : -1.0f;
+        for (int i = 0; i < 26; ++i) {
+            const float* e = kEditedBind[i];
+            assert(length(sub(b[i].position, rotate(C, {mirror * e[0], e[1], e[2]}))) < 1e-5f);
+            assert(static_cast<int32_t>(mesh.jointParents[i]) == kHandJointParents[i]);
+            assert(mesh.jointRadii[i] > 0.005f && mesh.jointRadii[i] < 0.03f);
+        }
+        assert(angleDeg(rotate(b[1].orientation, {0, 0, 1}), rotate(C, {0, 0, 1})) < 0.1f);
+        const int chains[5][5] = {{2, 3, 4, 5, -1}, {6, 7, 8, 9, 10}, {11, 12, 13, 14, 15}, {16, 17, 18, 19, 20}, {21, 22, 23, 24, 25}};
+        for (const auto& chain : chains) {
+            int count = chain[4] >= 0 ? 5 : 4;
+            // Tips may sit off the bone line (they were moved by hand), so the distal frame is checked against the previous bone.
+            for (int k = 0; k + 2 < count; ++k) assert(angleDeg(rotate(b[chain[k]].orientation, {0, 0, -1}), sub(b[chain[k + 1]].position, b[chain[k]].position)) < 0.1f);
+            int dist = chain[count - 2];
+            assert(angleDeg(rotate(b[dist].orientation, {0, 0, -1}), sub(b[dist].position, b[chain[count - 3]].position)) < 0.1f);
+            {   // The tip keeps the table orientation (mirrored for the right hand).
+                const float* e = kEditedBind[chain[count - 1]];
+                XrQuaternionf tq{e[3], mirror * e[4], mirror * e[5], e[6]};
+                for (const XrVector3f axis : {XrVector3f{0, 1, 0}, XrVector3f{0, 0, 1}})
+                    assert(angleDeg(rotate(b[chain[count - 1]].orientation, axis), rotate(C, rotate(tq, axis))) < 0.1f);
+            }
+            // The table roll is the +Y of the table orientation projected onto the plane normal to the rebuilt bone
+            // (two table frames were rolled after their joints were dragged, so their own +Z is off the bone by 4-9 deg).
+            for (int k = 0; k + 1 < count; ++k) {
+                const float* e = kEditedBind[chain[k]];
+                XrVector3f up = rotate(XrQuaternionf{e[3], e[4], e[5], e[6]}, {0, 1, 0});
+                up = rotate(C, {mirror * up.x, up.y, up.z});
+                XrVector3f z = rotate(b[chain[k]].orientation, {0, 0, 1});
+                assert(angleDeg(rotate(b[chain[k]].orientation, {0, 1, 0}), sub(up, scale(z, dot(up, z)))) < 0.1f);
+            }
+        }
+    }
+    printf("hand skeleton edited bind: ok\n");
+    return 0;
 }
 static void checkRebuilt(const XrHandTrackingMeshFB& mesh, bool live) {
     using namespace handmath;
@@ -138,6 +186,10 @@ static void checkRebuilt(const XrHandTrackingMeshFB& mesh, bool live) {
             // Left hand capture: the thumb metacarpal rolls toward +X of the wrist frame.
             XrVector3f expected = rotate(b[1].orientation, normalize({0.35f, 0.94f, 0.0f}));
             assert(angleDeg(rotate(b[meta].orientation, {0, 1, 0}), expected) < 5.0f);
+        } else if (meta == 21 && live) {
+            // The little metacarpal follows the aligned live frame: rolled about 24 degrees toward the ulnar side.
+            float roll = angleDeg(rotate(b[meta].orientation, {0, 1, 0}), wristUp);
+            assert(roll > 18.0f && roll < 30.0f);
         } else assert(angleDeg(rotate(b[meta].orientation, {0, 1, 0}), wristUp) < 20.0f);
         assert(angleDeg(rotate(b[tip].orientation, {0, 1, 0}), rotate(b[dist].orientation, {0, 1, 0})) < 1.0f);
         // The captured bind hand is relaxed (about 22 degrees of curl), so compare twist, not curl.
@@ -159,8 +211,9 @@ static void checkRebuilt(const XrHandTrackingMeshFB& mesh, bool live) {
     // Index tip length follows the live sample (|j10 - j9| of the captured hand is about 23 mm).
     if (live) assert(std::fabs(length(sub(b[10].position, b[9].position)) - 0.0230f) < 0.0015f);
 }
-int main() {
+int main(int argc, char** argv) {
     using namespace handmath;
+    if (argc > 1 && std::string(argv[1]) == "edited") return runEdited();
     // Quaternion construction round-trips an arbitrary orthonormal basis.
     XrVector3f z = normalize({0.3f, -0.5f, 0.8f}), up{0, 1, 0};
     XrVector3f y = normalize(sub(up, scale(z, dot(up, z)))), x = cross(y, z);
@@ -180,6 +233,27 @@ int main() {
     XrHandJointLocationsEXT locations{XR_TYPE_HAND_JOINT_LOCATIONS_EXT, nullptr, XR_FALSE, 26, joints};
     XrHandJointsLocateInfoEXT locate{XR_TYPE_HAND_JOINTS_LOCATE_INFO_EXT};
     assert(XR_SUCCEEDED(xrLocateHandJointsEXT(tracker, &locate, &locations)));
+    {
+        // Frame alignment: the wrist keeps its position and Z axis and takes its roll from the palm joint; the
+        // little metacarpal keeps its bone axis and rolls 24 degrees toward the ulnar side; other joints are untouched.
+        auto live = [](int j) { const float* l = kLive[j]; return XrPosef{{l[4], l[5], l[6], l[7]}, {l[1], l[2], l[3]}}; };
+        const XrPosef& wrist = joints[1].pose;
+        assert(length(sub(wrist.position, live(1).position)) < 1e-6f);
+        assert(angleDeg(rotate(wrist.orientation, {0, 0, 1}), rotate(live(1).orientation, {0, 0, 1})) < 0.1f);
+        XrVector3f z = rotate(wrist.orientation, {0, 0, 1}), palmUp = rotate(live(0).orientation, {0, 1, 0});
+        XrVector3f expectedUp = normalize(sub(palmUp, scale(z, dot(palmUp, z))));
+        assert(angleDeg(rotate(wrist.orientation, {0, 1, 0}), expectedUp) < 0.1f);
+        float wristRoll = angleDeg(rotate(wrist.orientation, {0, 1, 0}), rotate(live(1).orientation, {0, 1, 0}));
+        assert(wristRoll > 5.0f && wristRoll < 15.0f);  // captured hand: about 9 degrees
+        const XrPosef& meta = joints[21].pose;
+        assert(length(sub(meta.position, live(21).position)) < 1e-6f);
+        assert(angleDeg(rotate(meta.orientation, {0, 0, -1}), sub(joints[22].pose.position, meta.position)) < 1.0f);
+        float metaRoll = angleDeg(rotate(meta.orientation, {0, 1, 0}), rotate(wrist.orientation, {0, 1, 0}));
+        assert(metaRoll > 20.0f && metaRoll < 28.0f);
+        XrVector3f wristX = rotate(wrist.orientation, {1, 0, 0});
+        assert(dot(rotate(meta.orientation, {0, 1, 0}), wristX) * dot(sub(joints[22].pose.position, wrist.position), wristX) > 0);
+        for (int j : {0, 2, 7, 12, 22}) assert(angleDeg(rotate(joints[j].pose.orientation, {0, 1, 0}), rotate(live(j).orientation, {0, 1, 0})) < 0.1f);
+    }
     checkRebuilt(queryMesh(), true);
 
     // A count query must pass through untouched.
