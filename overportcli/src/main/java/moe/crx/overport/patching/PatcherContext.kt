@@ -109,7 +109,9 @@ class PatcherContext(
         args: Map<String, List<String>>,
         callback: (Int, Patch) -> Unit = { _, _ -> }
     ) {
-        val patches = args.keys.mapNotNull { PatchStore.get(it) }
+        // Registration order: library copies run before the patches that rewrite the copied
+        // libraries, whatever order the caller's map has (the GUI map is not insertion ordered).
+        val patches = PatchStore.all().filter { it.name in args }
         val needsConfig = patches.any { it.requiresOverportConfig }
 
         val librariesDir = if (needsConfig) {

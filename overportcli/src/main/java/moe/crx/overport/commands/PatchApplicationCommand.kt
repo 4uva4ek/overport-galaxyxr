@@ -67,6 +67,13 @@ object PatchApplicationCommand : CliCommand() {
         println("Omit to use the target default; native clears the override. Games may apply their own scale.")
         println("--performance=max | app (Galaxy XR only): default max requests CPU/GPU BOOST and supported 90 Hz.")
         println("Use app to restore application-controlled performance and refresh rate.")
+        println("--foveation=eye | app (Galaxy XR only): experimental eye tracking for application foveation profiles; default app.")
+        println("--hands=auto | on | off (Galaxy XR only): request the Android XR hand tracking permission at launch.")
+        println("Default auto requests it only when the game declares Quest hand tracking; on forces it, off never asks.")
+        println("--hand-mesh=fix | runtime (Galaxy XR only): fix (default) rebuilds the incomplete runtime hand skeleton for OVRPlugin.")
+        println("--dispatcher=open | overport (Galaxy XR only): open (default) packages the open OpenXR dispatcher")
+        println("(openxr-dispatcher-open ${moe.crx.overport.galaxyxr.OpenDispatcher.VERSION}) as libopenxr_loader.so;")
+        println("overport keeps the closed Overport dispatcher with the hash-guarded swapchain abort fix.")
         println("--verbose-runtime enables runtime diagnostics in this APK without changing device properties.")
         println("These explicit options are applied after --patches or the selected target preset.")
         println()
@@ -96,6 +103,10 @@ object PatchApplicationCommand : CliCommand() {
         var textureSize: String? = null,
         var verboseRuntime: Boolean = false,
         var performance: String? = null,
+        var foveation: String? = null,
+        var hands: String? = null,
+        var handMesh: String? = null,
+        var dispatcher: String? = null,
     )
 
     private fun scanArguments(args: List<String>): ParsedArguments {
@@ -120,6 +131,10 @@ object PatchApplicationCommand : CliCommand() {
                 "--texture-size" -> parsed.textureSize = value
                 "--verbose-runtime" -> parsed.verboseRuntime = true
                 "--performance" -> parsed.performance = value
+                "--foveation" -> parsed.foveation = value
+                "--hands" -> parsed.hands = value
+                "--hand-mesh" -> parsed.handMesh = value
+                "--dispatcher" -> parsed.dispatcher = value
             }
         }
 
@@ -130,8 +145,24 @@ object PatchApplicationCommand : CliCommand() {
         val parsed = scanArguments(args)
 
         val inputFile = parsed.inputFile?.let { File(it) } ?: return false
+        if (parsed.foveation != null && (parsed.target != GalaxyXrPatches.TARGET || parsed.foveation !in listOf("app", "eye"))) {
+            println("--foveation requires --target=galaxyxr and a value of eye or app.")
+            return false
+        }
         if (parsed.performance != null && (parsed.target != GalaxyXrPatches.TARGET || parsed.performance !in listOf("max", "app"))) {
             println("--performance requires --target=galaxyxr and a value of max or app.")
+            return false
+        }
+        if (parsed.hands != null && (parsed.target != GalaxyXrPatches.TARGET || parsed.hands !in listOf("auto", "on", "off"))) {
+            println("--hands requires --target=galaxyxr and a value of auto, on or off.")
+            return false
+        }
+        if (parsed.handMesh != null && (parsed.target != GalaxyXrPatches.TARGET || parsed.handMesh !in listOf("fix", "runtime"))) {
+            println("--hand-mesh requires --target=galaxyxr and a value of fix or runtime.")
+            return false
+        }
+        if (parsed.dispatcher != null && (parsed.target != GalaxyXrPatches.TARGET || parsed.dispatcher !in GalaxyXrPatches.DISPATCHERS)) {
+            println("--dispatcher requires --target=galaxyxr and a value of open or overport.")
             return false
         }
 
@@ -157,7 +188,7 @@ object PatchApplicationCommand : CliCommand() {
         val workspace = parsed.workspace?.let { File(it) } ?: defaultWorkspace()
 
         val patches = (parsed.patches ?: when (parsed.target) {
-            GalaxyXrPatches.TARGET -> GalaxyXrPatches.recommended()
+            GalaxyXrPatches.TARGET -> GalaxyXrPatches.recommended(parsed.dispatcher ?: GalaxyXrPatches.DISPATCHER_OPEN)
             null -> PatchStore.recommended().associate { it.name to listOf() }
             else -> {
                 println("Unknown target '${parsed.target}'. Available targets: ${GalaxyXrPatches.TARGET}. Using the default patch set.")
@@ -166,7 +197,10 @@ object PatchApplicationCommand : CliCommand() {
         }).toMutableMap()
         parsed.textureSize?.let { patches[PATCH_TEXTURE_SIZE.name] = listOf(it) }
         if (parsed.verboseRuntime) patches[PATCH_VERBOSE_RUNTIME.name] = emptyList()
-        parsed.performance?.let { patches[PATCH_GALAXYXR_PERFORMANCE.name] = listOf(it) }
+        if (parsed.performance != null || parsed.foveation != null || parsed.hands != null || parsed.handMesh != null) {
+            patches[PATCH_GALAXYXR_PERFORMANCE.name] = listOf(parsed.performance ?: "max", parsed.foveation ?: "app", parsed.hands ?: "auto", parsed.handMesh ?: "fix")
+        }
+        parsed.dispatcher?.let { GalaxyXrPatches.selectDispatcher(patches, it) }
 
         val nameFormat = parsed.nameFormat ?: DEFAULT_FORMAT
 

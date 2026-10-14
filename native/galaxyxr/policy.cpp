@@ -52,6 +52,12 @@ template<typename T> static T proc(XrInstance instance, const char* name) {
 }
 
 struct Policy {
+    PFN_xrCreateFoveationProfileFB createFoveation = nullptr;
+    PFN_xrDestroyFoveationProfileFB destroyFoveation = nullptr;
+    PFN_xrUpdateSwapchainFB updateSwapchain = nullptr;
+    PFN_xrGetFoveationEyeTrackedStateMETA eyeState = nullptr;
+    bool eye = false;
+    bool gles = false;
     PFN_xrPerfSettingsSetPerformanceLevelEXT perf = nullptr;
     PFN_xrEnumerateDisplayRefreshRatesFB rates = nullptr;
     PFN_xrRequestDisplayRefreshRateFB request = nullptr;
@@ -59,7 +65,7 @@ struct Policy {
 };
 static std::mutex stateMutex;
 static std::unordered_map<XrInstance, Policy> instances;
-struct Session { XrInstance instance; Policy policy; };
+struct Session { XrInstance instance; Policy policy; uint32_t eyeFrames = 0; };
 static std::unordered_map<XrSession, Session> sessions;
 
 static std::string config() {
@@ -82,6 +88,7 @@ static std::string config() {
 #endif
 }
 static bool maxPerformance() { static bool enabled = config().find("performance=max\n") != std::string::npos; return enabled; }
+static bool eyeFoveation() { static bool enabled = config().find("foveation=eye\n") != std::string::npos; return enabled; }
 static Policy sessionPolicy(XrSession session) {
     std::lock_guard<std::mutex> lock(stateMutex);
     auto it = sessions.find(session);
@@ -109,6 +116,14 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrCreateInstance(const XrInstanceCreat
         return supported;
     };
     if (maxPerformance()) { enable(XR_EXT_PERFORMANCE_SETTINGS_EXTENSION_NAME); enable(XR_FB_DISPLAY_REFRESH_RATE_EXTENSION_NAME); }
+    const char* eyeExtensions[] = {XR_FB_SWAPCHAIN_UPDATE_STATE_EXTENSION_NAME,
+        XR_FB_FOVEATION_EXTENSION_NAME, XR_FB_FOVEATION_CONFIGURATION_EXTENSION_NAME,
+        XR_META_FOVEATION_EYE_TRACKED_EXTENSION_NAME};
+    bool eye = eyeFoveation() && std::all_of(std::begin(eyeExtensions), std::end(eyeExtensions), [&](const char* name) {
+        return std::any_of(available.begin(), available.end(), [&](const auto& p) { return !strcmp(p.extensionName, name); });
+    });
+    auto namesWithoutEye = names;
+    if (eye) for (auto name : eyeExtensions) enable(name);
     auto enabled = [&](const char* name) { return std::any_of(names.begin(), names.end(), [&](const char* p) { return !strcmp(p, name); }); };
     bool perf = enabled(XR_EXT_PERFORMANCE_SETTINGS_EXTENSION_NAME);
     bool refresh = enabled(XR_FB_DISPLAY_REFRESH_RATE_EXTENSION_NAME);
@@ -116,8 +131,23 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrCreateInstance(const XrInstanceCreat
     copy.enabledExtensionCount = static_cast<uint32_t>(names.size());
     copy.enabledExtensionNames = names.data();
     XrResult result = create(&copy, instance);
+    if (XR_FAILED(result) && eye && names != namesWithoutEye) {
+        LOG("Eye foveation extension request refused=%d; retrying original extension set", result);
+        names = namesWithoutEye;
+        copy.enabledExtensionCount = static_cast<uint32_t>(names.size());
+        copy.enabledExtensionNames = names.data();
+        eye = false;
+        result = create(&copy, instance);
+    }
     if (XR_SUCCEEDED(result) && instance) {
         Policy policy;
+        policy.eye = eye;
+        if (enabled(XR_FB_FOVEATION_EXTENSION_NAME)) {
+            policy.createFoveation = proc<PFN_xrCreateFoveationProfileFB>(*instance, "xrCreateFoveationProfileFB");
+            policy.destroyFoveation = proc<PFN_xrDestroyFoveationProfileFB>(*instance, "xrDestroyFoveationProfileFB");
+        }
+        if (enabled(XR_FB_SWAPCHAIN_UPDATE_STATE_EXTENSION_NAME)) policy.updateSwapchain = proc<PFN_xrUpdateSwapchainFB>(*instance, "xrUpdateSwapchainFB");
+        if (eye) policy.eyeState = proc<PFN_xrGetFoveationEyeTrackedStateMETA>(*instance, "xrGetFoveationEyeTrackedStateMETA");
         if (perf) policy.perf = proc<PFN_xrPerfSettingsSetPerformanceLevelEXT>(*instance, "xrPerfSettingsSetPerformanceLevelEXT");
         if (refresh) {
             policy.rates = proc<PFN_xrEnumerateDisplayRefreshRatesFB>(*instance, "xrEnumerateDisplayRefreshRatesFB");
@@ -126,6 +156,7 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrCreateInstance(const XrInstanceCreat
         std::lock_guard<std::mutex> lock(stateMutex);
         instances[*instance] = policy;
         LOG("Policy: maxPerformance=%d; extensions perf=%d refresh=%d", maxPerformance(), perf, refresh);
+        LOG("Eye foveation requested=%d extensions=%d", eyeFoveation(), eye);
     }
     return result;
 }
@@ -138,6 +169,17 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrCreateSession(XrInstance instance, c
         std::lock_guard<std::mutex> lock(stateMutex);
         auto it = instances.find(instance);
         sessions[*session] = {instance, it == instances.end() ? Policy{} : it->second};
+        auto& policy = sessions[*session].policy;
+        for (auto node = info ? static_cast<const XrBaseInStructure*>(info->next) : nullptr; node; node = node->next)
+            if (node->type == XR_TYPE_GRAPHICS_BINDING_OPENGL_ES_ANDROID_KHR) policy.gles = true;
+        if (policy.eye) {
+            XrSystemFoveationEyeTrackedPropertiesMETA eye{XR_TYPE_SYSTEM_FOVEATION_EYE_TRACKED_PROPERTIES_META};
+            XrSystemProperties properties{XR_TYPE_SYSTEM_PROPERTIES, &eye};
+            auto getProperties = proc<PFN_xrGetSystemProperties>(instance, "xrGetSystemProperties");
+            XrResult support = info && getProperties ? getProperties(instance, info->systemId, &properties) : XR_ERROR_FUNCTION_UNSUPPORTED;
+            policy.eye = XR_SUCCEEDED(support) && eye.supportsFoveationEyeTracked && policy.eyeState && policy.createFoveation && policy.destroyFoveation && policy.updateSwapchain;
+            LOG("Eye foveation system support=%d result=%d", policy.eye, support);
+        }
     }
     return result;
 }
@@ -190,11 +232,14 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrRequestDisplayRefreshRateFB(XrSessio
     return policy.request(session, policy.supports90 ? 90.0f : rate);
 }
 
+#include "eye_foveation.inc"
+#include "hand_tracking.inc"
+
 extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrDestroySession(XrSession session) {
     auto destroy = symbol<PFN_xrDestroySession>("xrDestroySession");
     if (!destroy) return XR_ERROR_FUNCTION_UNSUPPORTED;
     XrResult result = destroy(session);
-    if (XR_SUCCEEDED(result)) { std::lock_guard<std::mutex> lock(stateMutex); sessions.erase(session); }
+    if (XR_SUCCEEDED(result)) { std::lock_guard<std::mutex> lock(stateMutex); forgetEyeSession(session); sessions.erase(session); }
     return result;
 }
 
@@ -206,7 +251,7 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrDestroyInstance(XrInstance instance)
         std::lock_guard<std::mutex> lock(stateMutex);
         instances.erase(instance);
         for (auto it = sessions.begin(); it != sessions.end();) {
-            if (it->second.instance == instance) it = sessions.erase(it); else ++it;
+            if (it->second.instance == instance) { forgetEyeSession(it->first); it = sessions.erase(it); } else ++it;
         }
     }
     return result;
@@ -223,10 +268,14 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrGetInstanceProcAddr(XrInstance insta
     HOOK(xrCreateInstance); HOOK(xrDestroyInstance);
     HOOK(xrCreateSession); HOOK(xrDestroySession); HOOK(xrBeginSession);
     HOOK(xrPerfSettingsSetPerformanceLevelEXT); HOOK(xrRequestDisplayRefreshRateFB);
+    HOOK(xrCreateFoveationProfileFB); HOOK(xrDestroyFoveationProfileFB);
+    HOOK(xrCreateSwapchain); HOOK(xrDestroySwapchain); HOOK(xrUpdateSwapchainFB); HOOK(xrWaitFrame);
 #ifdef GXR_INPUT_DIAGNOSTICS
     HOOK(xrSyncActions); HOOK(xrCreateAction); HOOK(xrSuggestInteractionProfileBindings);
     HOOK(xrGetActionStateBoolean); HOOK(xrGetCurrentInteractionProfile);
 #endif
+    HAND_HOOK(xrCreateHandTrackerEXT, origCreateHandTracker); HAND_HOOK(xrDestroyHandTrackerEXT, origDestroyHandTracker);
+    HAND_HOOK(xrLocateHandJointsEXT, origLocateHandJoints); HAND_HOOK(xrGetHandMeshFB, origGetHandMesh);
 #undef HOOK
     return result;
 }

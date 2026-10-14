@@ -51,6 +51,7 @@ object PatchStore {
         register(PATCH_TEXTURE_SIZE)
         register(PATCH_VERBOSE_RUNTIME)
         register(PATCH_GALAXYXR_SWAPCHAIN)
+        register(PATCH_GALAXYXR_DISPATCHER)
         register(PATCH_GALAXYXR_PERFORMANCE)
     }
 }

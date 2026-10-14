@@ -7,6 +7,7 @@ out=../../overportcli/src/main/resources/galaxyxr/arm64-v8a
 mkdir -p "$out"
 diagnostics=()
 if [[ ${GXR_INPUT_DIAGNOSTICS:-0} == 1 ]]; then diagnostics=(-DGXR_INPUT_DIAGNOSTICS); fi
+if [[ ${GXR_HAND_DIAGNOSTICS:-0} == 1 ]]; then diagnostics+=(-DGXR_HAND_DIAGNOSTICS); fi
 "$toolchain/aarch64-linux-android29-clang++" -std=c++17 -O2 -Wall -Wextra \
     -Werror -Wno-missing-field-initializers -fvisibility-inlines-hidden \
     -static-libstdc++ -shared -fPIC -Iinclude "${diagnostics[@]}" policy.cpp -ldl -llog \

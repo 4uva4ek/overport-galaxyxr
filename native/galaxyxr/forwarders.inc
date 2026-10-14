@@ -142,18 +142,6 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrEnumerateSwapchainFormats(XrSession 
     return fn ? fn(session, formatCapacityInput, formatCountOutput, formats) : XR_ERROR_FUNCTION_UNSUPPORTED;
 }
 
-extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrCreateSwapchain(XrSession                                   session,
-    const XrSwapchainCreateInfo*                createInfo,
-    XrSwapchain*                                swapchain) {
-    auto fn = symbol<PFN_xrCreateSwapchain>("xrCreateSwapchain");
-    return fn ? fn(session, createInfo, swapchain) : XR_ERROR_FUNCTION_UNSUPPORTED;
-}
-
-extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrDestroySwapchain(XrSwapchain                                 swapchain) {
-    auto fn = symbol<PFN_xrDestroySwapchain>("xrDestroySwapchain");
-    return fn ? fn(swapchain) : XR_ERROR_FUNCTION_UNSUPPORTED;
-}
-
 extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrEnumerateSwapchainImages(XrSwapchain                                 swapchain,
     uint32_t                                    imageCapacityInput,
     uint32_t*                                   imageCountOutput,
@@ -189,13 +177,6 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrEndSession(XrSession                
 extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrRequestExitSession(XrSession                                   session) {
     auto fn = symbol<PFN_xrRequestExitSession>("xrRequestExitSession");
     return fn ? fn(session) : XR_ERROR_FUNCTION_UNSUPPORTED;
-}
-
-extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrWaitFrame(XrSession                                   session,
-    const XrFrameWaitInfo*                      frameWaitInfo,
-    XrFrameState*                               frameState) {
-    auto fn = symbol<PFN_xrWaitFrame>("xrWaitFrame");
-    return fn ? fn(session, frameWaitInfo, frameState) : XR_ERROR_FUNCTION_UNSUPPORTED;
 }
 
 extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrBeginFrame(XrSession                                   session,

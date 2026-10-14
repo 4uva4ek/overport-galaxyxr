@@ -14,6 +14,10 @@ fun GalaxyXrOptions(
     onTextureSize: (String) -> Unit,
     maximumPerformance: Boolean,
     onMaximumPerformance: (Boolean) -> Unit,
+    handTracking: Boolean,
+    onHandTracking: (Boolean) -> Unit,
+    openDispatcher: Boolean,
+    onOpenDispatcher: (Boolean) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val sizes = linkedMapOf(
@@ -42,6 +46,18 @@ fun GalaxyXrOptions(
                 headlineContent = { Text(stringResource(Res.string.maximum_performance)) },
                 supportingContent = { Text(stringResource(if (maximumPerformance) Res.string.performance_max_hint else Res.string.performance_app_hint)) },
                 trailingContent = { Switch(checked = maximumPerformance, onCheckedChange = onMaximumPerformance) },
+                colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(Res.string.hand_tracking_permission)) },
+                supportingContent = { Text(stringResource(if (handTracking) Res.string.hand_tracking_auto_hint else Res.string.hand_tracking_off_hint)) },
+                trailingContent = { Switch(checked = handTracking, onCheckedChange = onHandTracking) },
+                colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(Res.string.open_dispatcher)) },
+                supportingContent = { Text(stringResource(if (openDispatcher) Res.string.open_dispatcher_on_hint else Res.string.open_dispatcher_off_hint)) },
+                trailingContent = { Switch(checked = openDispatcher, onCheckedChange = onOpenDispatcher) },
                 colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
             )
         }

@@ -40,10 +40,12 @@ fun ApplicationInfoContent(
     }
     var textureSize by remember(applicationPackage) { mutableStateOf("3552x3840") }
     var maximumPerformance by remember(applicationPackage) { mutableStateOf(true) }
+    var handTracking by remember(applicationPackage) { mutableStateOf(true) }
+    var openDispatcher by remember(applicationPackage) { mutableStateOf(true) }
     var advanced by remember(applicationPackage) { mutableStateOf(false) }
     // These patches define the target and are configured through the controls below.
-    val managed = setOf(PATCH_COPY_LIBRARIES, PATCH_GENERATE_CONFIG, PATCH_VR_METADATA,
-        PATCH_GALAXYXR_UNITY_GLES, PATCH_GALAXYXR_SWAPCHAIN, PATCH_GALAXYXR_PERFORMANCE, PATCH_TEXTURE_SIZE)
+    val managed = setOf(PATCH_COPY_LIBRARIES, PATCH_GENERATE_CONFIG, PATCH_VR_METADATA, PATCH_GALAXYXR_UNITY_GLES,
+        PATCH_GALAXYXR_SWAPCHAIN, PATCH_GALAXYXR_DISPATCHER, PATCH_GALAXYXR_PERFORMANCE, PATCH_TEXTURE_SIZE)
 
     fun togglePatch(patch: Patch) {
         val checked = enabledPatches.containsKey(patch.name)
@@ -76,7 +78,8 @@ fun ApplicationInfoContent(
         Box(modifier = Modifier.weight(1f)) {
             LazyColumn {
                 item {
-                    GalaxyXrOptions(textureSize, { textureSize = it }, maximumPerformance, { maximumPerformance = it })
+                    GalaxyXrOptions(textureSize, { textureSize = it }, maximumPerformance, { maximumPerformance = it },
+                        handTracking, { handTracking = it }, openDispatcher, { openDispatcher = it })
                     TextButton(onClick = { advanced = !advanced }, modifier = Modifier.padding(horizontal = 8.dp)) {
                         Text(stringResource(if (advanced) Res.string.hide_advanced else Res.string.show_advanced))
                     }
@@ -155,7 +158,9 @@ fun ApplicationInfoContent(
                     }
                     onConfirm(enabledPatches.toMutableMap().apply {
                         this[PATCH_TEXTURE_SIZE.name] = listOf(textureSize)
-                        this[PATCH_GALAXYXR_PERFORMANCE.name] = listOf(if (maximumPerformance) "max" else "app")
+                        // Arguments: performance, foveation (app: CLI-only experiment), hands.
+                        this[PATCH_GALAXYXR_PERFORMANCE.name] = listOf(if (maximumPerformance) "max" else "app", "app", if (handTracking) "auto" else "off")
+                        GalaxyXrPatches.selectDispatcher(this, if (openDispatcher) GalaxyXrPatches.DISPATCHER_OPEN else GalaxyXrPatches.DISPATCHER_OVERPORT)
                     })
                 }
             ) {

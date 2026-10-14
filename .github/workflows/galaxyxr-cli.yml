@@ -21,11 +21,13 @@ jobs:
         with:
           packages: platform-tools
           log-accepted-android-sdk-licenses: false
-      - name: Install NDK
-        run: sdkmanager 'ndk;29.0.14206865'
-      - name: Build and test adapter
+      - name: Install NDK and CMake
+        run: sdkmanager 'ndk;29.0.14206865' 'cmake;3.22.1'
+      - name: Build and test adapter and dispatcher
         run: |
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/29.0.14206865"
+          export CMAKE_DIR="$ANDROID_HOME/cmake/3.22.1/bin"
+          bash native/galaxyxr/build_dispatcher.sh
           python3 native/galaxyxr/generate_forwarders.py
           git diff --exit-code -- native/galaxyxr/forwarders.inc
           bash native/galaxyxr/build.sh
@@ -33,6 +35,8 @@ jobs:
           g++ -std=c++17 -O2 -Wall -Wextra -Werror -Wno-missing-field-initializers -Inative/galaxyxr/include native/galaxyxr/test_policy.cpp -ldl -pthread -o native/galaxyxr/build/test_policy
           native/galaxyxr/build/test_policy
           native/galaxyxr/build/test_policy app
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -Wno-missing-field-initializers -Inative/galaxyxr/include native/galaxyxr/test_hand_tracking.cpp -ldl -pthread -o native/galaxyxr/build/test_hand_tracking
+          native/galaxyxr/build/test_hand_tracking
       - name: Build CLI
         run: bash gradlew :overportcli:shadowJar --console=plain
       - uses: actions/upload-artifact@v4

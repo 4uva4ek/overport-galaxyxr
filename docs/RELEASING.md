@@ -1,8 +1,11 @@
 # Releasing Windows and Android together
 
 Workflow: `.github/workflows/galaxyxr-release.yml` (Galaxy XR applications).
-It builds the native adapter once, then builds Windows and Android in parallel.
+It builds the native adapter and the open OpenXR dispatcher once (NDK r29 and the SDK
+CMake 3.22.1 from `sdkmanager`), then builds Windows and Android in parallel.
 Both must succeed before the release job can publish. No game inputs are needed.
+`tools/check_packaged_adapter.py` verifies that both distributions carry the same adapter,
+dispatcher and licence notices as the checked-out resources.
 
 ## One-time Android signing setup
 

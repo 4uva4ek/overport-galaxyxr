@@ -7,6 +7,12 @@
     <string name="maximum_performance">Maximum performance · 90 Hz</string>
     <string name="performance_max_hint">Request CPU/GPU BOOST and supported 90 Hz. Actual FPS depends on the game and headset.</string>
     <string name="performance_app_hint">The game controls performance and refresh rate.</string>
+    <string name="hand_tracking_permission">Hand tracking permission</string>
+    <string name="hand_tracking_auto_hint">Games with Quest hand tracking ask for the Android XR hand tracking permission at launch.</string>
+    <string name="hand_tracking_off_hint">The hand tracking permission is never requested; hands stay unavailable in games.</string>
+    <string name="open_dispatcher">Open OpenXR dispatcher</string>
+    <string name="open_dispatcher_on_hint">openxr-dispatcher-open 1.0.0 replaces the closed Overport dispatcher; large swapchains go to the runtime.</string>
+    <string name="open_dispatcher_off_hint">Closed Overport dispatcher 3.4.3 with the swapchain abort fix.</string>
     <string name="show_advanced">Advanced patches</string>
     <string name="hide_advanced">Hide advanced patches</string>
     <string name="save_patched_apk">Save patched APK</string>
