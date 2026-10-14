@@ -41,6 +41,14 @@ the earlier local build (SHA-256 `bfd0f452be91187ce88f4eb70f6fc6cdd1bae09e33250f
 75416 bytes). Both CI workflows build it next to the adapter; `tools/check_packaged_adapter.py`
 verifies the jar and the Android APK carry the adapter, the dispatcher and the notices.
 
+The Linux CI build of the same commit (run 38489581588, NDK 29.0.14206865) is 75256 bytes,
+SHA-256 `47c3ce136e97712762ea0fb7f96962a1ac7fc4a238e7214775ff994bc5da70f8`. A section-by-section
+comparison with the Windows build shows identical `.text`, `.rodata`, `.data`, `.data.rel.ro`,
+dynamic symbol and relocation tables, PLT/GOT and `.dynamic`; only `.comment` (the Windows
+toolchain records two compiler identification strings), the `.note.gnu.build-id` derived from
+it and the section-header offsets differ. Released packages therefore carry code identical to
+the headset-tested binary.
+
 Patches now run in `PatchStore` registration order regardless of the requested map order,
 so `patch_copy_libraries` always precedes `patch_galaxyxr_dispatcher` and
 `patch_galaxyxr_performance`; the GUI map (`mutableStateMapOf`) is not insertion ordered.
