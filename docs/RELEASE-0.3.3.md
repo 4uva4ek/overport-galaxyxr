@@ -4,6 +4,7 @@ Fixes long vibration tails caused by ineffective haptic cancellation in the Gala
 
 - The common adapter sends long scalar vibration effects in renewable 20 ms slices. Zero amplitude and Stop cancel renewal, while sustained effects retain their requested duration. This applies to all games converted with the default Galaxy XR preset.
 - Galaxy XR is now the only patching target. The CLI uses it by default, rejects other targets, and keeps `--target=galaxyxr` compatible. Converted APKs omit the unused Huawei, Meta, Pico and YVR OpenXR loaders.
+- Linux file selection and saving use a themed FlatLaf Swing chooser to avoid blank native GTK dialogs on affected Wayland desktops. Dialogs follow the application light/dark theme and are owned by the main window. The fix was confirmed on the affected Linux desktop.
 - Windows x64, Linux x64, macOS ARM64/x64 and Android patcher packages remain supported. Desktop packages include Java; the optional CLI JAR requires Java 21.
 
 Reconvert existing game APKs to receive the haptic fix. Keep your existing workspace and signing key so rebuilt games retain their signing identity. Updating the patcher alone does not update installed games.

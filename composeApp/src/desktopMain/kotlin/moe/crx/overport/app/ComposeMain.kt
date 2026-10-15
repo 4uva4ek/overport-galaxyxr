@@ -1,5 +1,6 @@
 package moe.crx.overport.app
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.foundation.layout.Box
@@ -13,6 +14,8 @@ import androidx.compose.ui.draganddrop.awtTransferable
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.formdev.flatlaf.FlatDarkLaf
+import com.formdev.flatlaf.FlatLightLaf
 import com.formdev.flatlaf.util.SystemFileChooser
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
@@ -26,12 +29,20 @@ import org.jetbrains.compose.resources.stringResource
 import overportapp.composeapp.generated.resources.Res
 import overportapp.composeapp.generated.resources.select_a_file
 import overportapp.composeapp.generated.resources.app_icon
-import java.awt.Frame
 import java.awt.datatransfer.DataFlavor
 import java.io.*
 
+fun main(args: Array<String>) {
+    // Native GTK file dialogs can accept clicks while painting a blank window
+    // on Linux/Wayland. Use FlatLaf's Swing provider for both open and save.
+    if (System.getProperty("os.name") == "Linux") {
+        System.setProperty("flatlaf.useSystemFileChooser", "false")
+    }
+    launchApplication(args)
+}
+
 @OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
-fun main(args: Array<String>) = application {
+private fun launchApplication(args: Array<String>) = application {
     Window(
         onCloseRequest = ::exitApplication,
         title = "Overport Galaxy XR",
@@ -41,6 +52,14 @@ fun main(args: Array<String>) = application {
         dataDir.mkdirs()
 
         val selectFileString = stringResource(Res.string.select_a_file)
+        val darkTheme = isSystemInDarkTheme()
+
+        fun createFileChooser(): SystemFileChooser {
+            if (System.getProperty("os.name") == "Linux") {
+                if (darkTheme) FlatDarkLaf.setup() else FlatLightLaf.setup()
+            }
+            return SystemFileChooser().apply { dialogTitle = selectFileString }
+        }
         val viewModel: MainViewModel = viewModel { MainViewModel(dataDir, ImageIOIconResizer) }
         val openFlow = remember { MutableSharedFlow<Pair<String, InputStream>?>() }
         val saveFlow = remember { MutableSharedFlow<OutputStream?>() }
@@ -99,24 +118,24 @@ fun main(args: Array<String>) = application {
                 appUpdater = remember { createDesktopAppUpdater { exitApplication() } },
                 viewModel = viewModel,
                 openFile = {
-                    val fileDialog = SystemFileChooser(selectFileString).apply {
+                    val fileDialog = createFileChooser().apply {
                         currentDirectory = File(lastOpenedDirectory)
                         selectedFile = null
                     }
 
-                    val file = if (fileDialog.showOpenDialog(Frame()) != SystemFileChooser.APPROVE_OPTION) null else {
+                    val file = if (fileDialog.showOpenDialog(window) != SystemFileChooser.APPROVE_OPTION) null else {
                         fileDialog.selectedFile
                     }
 
                     openFile(file)
                 },
                 saveFile = { name ->
-                    val fileDialog = SystemFileChooser(selectFileString).apply {
+                    val fileDialog = createFileChooser().apply {
                         currentDirectory = File(lastOpenedDirectory)
                         selectedFile = File(lastOpenedDirectory, name)
                     }
 
-                    val file = if (fileDialog.showSaveDialog(Frame()) != SystemFileChooser.APPROVE_OPTION) null else {
+                    val file = if (fileDialog.showSaveDialog(window) != SystemFileChooser.APPROVE_OPTION) null else {
                         fileDialog.selectedFile
                     }
 
