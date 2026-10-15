@@ -5,10 +5,19 @@
 
 ## Графическое приложение
 
-В [Releases](https://github.com/4uva4ek/overport-galaxyxr/releases) доступны две версии:
+В [Releases](https://github.com/4uva4ek/overport-galaxyxr/releases) публикуются сборки для четырёх платформ:
 
 - **Windows:** распакуйте ZIP и запустите `OverportGalaxyXR.exe`. Java уже включена.
+- **macOS:** выберите DMG `macos-arm64` (Apple Silicon) или `macos-x64` (Intel),
+  откройте образ и перенесите приложение в Applications. Java включена.
+  Сборки пока без подписи Developer ID и нотариального заверения Apple.
+- **Linux x64:** распакуйте `.tar.gz` и запустите `OverportGalaxyXR/bin/OverportGalaxyXR`.
+  Java включена; требуется графическое окружение с системными библиотеками.
 - **Android:** установите APK и откройте **Overport Galaxy XR**.
+
+На macOS и Linux приложение скачивает проверенный пакет обновления; после загрузки
+закройте приложение и установите пакет вручную. Рабочая папка и ключ подписи
+остаются в `~/overport/cache`.
 
 Выберите APK игры, при необходимости измените разрешение, производительность,
 запрос разрешения на трекинг рук и диспетчер OpenXR (открытый по умолчанию,

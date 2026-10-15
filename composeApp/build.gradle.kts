@@ -121,7 +121,7 @@ compose.desktop {
         }
 
         nativeDistributions {
-            targetFormats(TargetFormat.Msi)
+            targetFormats(TargetFormat.Msi, TargetFormat.Dmg, TargetFormat.Deb)
             packageName = "OverportGalaxyXR"
             packageVersion = galaxyXrVersion
 
@@ -135,6 +135,11 @@ compose.desktop {
                 iconFile.set(file("icons/app-icon.png"))
             }
             macOS {
+                // Apple package versions require a positive major; keep release/update versions unchanged.
+                packageVersion = galaxyXrVersion.split('.').let { parts ->
+                    "${parts[0].toInt() + 1}.${parts[1]}.${parts[2]}"
+                }
+                bundleID = "moe.crx.overport.galaxyxr"
                 dockName = "Overport Galaxy XR"
                 iconFile.set(file("icons/app-icon.icns"))
             }

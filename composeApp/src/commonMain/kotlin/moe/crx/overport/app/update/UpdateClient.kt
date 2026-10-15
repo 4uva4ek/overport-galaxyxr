@@ -28,7 +28,7 @@ object UpdateClient {
         if (release.draft || release.prerelease || !release.tagName.startsWith("galaxyxr-v")) return null
         val version = release.tagName.removePrefix("galaxyxr-v")
         if (!newer(version, installed)) return null
-        require(platform in listOf("android.apk", "windows-x64.zip"))
+        require(platform in listOf("android.apk", "windows-x64.zip", "linux-x64.tar.gz", "macos-arm64.dmg", "macos-x64.dmg"))
         val name = "overport-galaxyxr-$version-$platform"
         val asset = release.assets.singleOrNull { it.name == name } ?: error("This release has no unique $platform package yet.")
         require(asset.url == "$REPOSITORY/releases/download/${release.tagName}/$name") { "Unexpected update download URL." }

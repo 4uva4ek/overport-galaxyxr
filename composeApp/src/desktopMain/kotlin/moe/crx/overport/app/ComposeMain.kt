@@ -18,7 +18,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import moe.crx.overport.app.composables.AppContent
 import moe.crx.overport.app.model.MainViewModel
-import moe.crx.overport.app.update.WindowsAppUpdater
+import moe.crx.overport.app.update.createDesktopAppUpdater
 import moe.crx.overport.utils.DesktopUtil.defaultWorkspace
 import moe.crx.overport.utils.ImageIOIconResizer
 import org.jetbrains.compose.resources.painterResource
@@ -96,7 +96,7 @@ fun main(args: Array<String>) = application {
             )
         ) {
             AppContent(
-                appUpdater = remember { WindowsAppUpdater { exitApplication() } },
+                appUpdater = remember { createDesktopAppUpdater { exitApplication() } },
                 viewModel = viewModel,
                 openFile = {
                     val fileDialog = SystemFileChooser(selectFileString).apply {

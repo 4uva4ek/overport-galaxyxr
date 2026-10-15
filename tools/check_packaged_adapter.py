@@ -1,4 +1,4 @@
-"""Ensure both patcher distributions carry the clean adapter, the open dispatcher and its notices."""
+"""Ensure patcher distributions carry the clean adapter, the open dispatcher and its notices."""
 import pathlib
 import sys
 import zipfile
@@ -19,7 +19,14 @@ assert dispatcher[:4] == b'\x7fELF' and dispatcher[18] == 0xb7, 'dispatcher is n
 assert b'open dispatcher ' in dispatcher and b'OpenXRDispatch' in dispatcher and b'\x001.0.0\x00' in dispatcher
 assert b'Copyright (c) 2026 Molier' in expected[names[2]] and b'cJSON' in expected[names[3]]
 for filename in sys.argv[1:]:
-    with zipfile.ZipFile(filename) as archive:
-        for name, data in expected.items():
-            assert archive.read(name) == data, (filename, name)
+    path = pathlib.Path(filename)
+    candidates = list(path.rglob('*.jar')) if path.is_dir() else [path]
+    found = set()
+    for candidate in candidates:
+        with zipfile.ZipFile(candidate) as archive:
+            for name, data in expected.items():
+                if name in archive.namelist():
+                    assert archive.read(name) == data, (candidate, name)
+                    found.add(name)
+    assert found == set(expected), (filename, 'missing resources', set(expected) - found)
     print(f'{filename}: release adapter, open dispatcher 1.0.0 and licence notices present, diagnostics absent')

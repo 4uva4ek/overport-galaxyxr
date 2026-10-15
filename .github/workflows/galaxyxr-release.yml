@@ -119,6 +119,8 @@ jobs:
           $appDir = Resolve-Path composeApp/build/compose/binaries/main-release/app/OverportGalaxyXR
           if (!(Test-Path "$appDir/OverportGalaxyXR.exe")) { throw 'Missing Windows launcher' }
           if (!(Test-Path "$appDir/runtime/bin/server/jvm.dll")) { throw 'Missing bundled Java runtime' }
+          python tools/check_packaged_adapter.py "$appDir"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           New-Item -ItemType Directory -Force dist | Out-Null
           Compress-Archive -Path $appDir -DestinationPath "dist/overport-galaxyxr-$version-windows-x64.zip"
       - uses: actions/upload-artifact@v4
@@ -127,8 +129,59 @@ jobs:
           path: dist/*.zip
           if-no-files-found: error
 
+  desktop-unix:
+    needs: adapter
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            platform: linux-x64
+          - runner: macos-15
+            platform: macos-arm64
+          - runner: macos-15-intel
+            platform: macos-x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/download-artifact@v4
+        with:
+          name: galaxyxr-adapter
+          path: overportcli/src/main/resources/galaxyxr/arm64-v8a
+      - name: Build desktop application
+        shell: bash
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          bash gradlew :composeApp:desktopTest :composeApp:createReleaseDistributable --console=plain
+          version=$(sed -n 's/^version=//p' galaxyxr.properties | tr -d '\r')
+          mkdir -p dist
+          base=composeApp/build/compose/binaries/main-release
+          if [[ "$PLATFORM" == linux-* ]]; then
+            test -x "$base/app/OverportGalaxyXR/bin/OverportGalaxyXR"
+            test -f "$base/app/OverportGalaxyXR/lib/runtime/lib/server/libjvm.so"
+            python3 tools/check_packaged_adapter.py "$base/app/OverportGalaxyXR"
+            tar -czf "dist/overport-galaxyxr-$version-$PLATFORM.tar.gz" -C "$base/app" OverportGalaxyXR
+          else
+            test -x "$base/app/OverportGalaxyXR.app/Contents/MacOS/OverportGalaxyXR"
+            test -f "$base/app/OverportGalaxyXR.app/Contents/runtime/Contents/Home/lib/server/libjvm.dylib"
+            python3 tools/check_packaged_adapter.py "$base/app/OverportGalaxyXR.app"
+            bash gradlew :composeApp:packageReleaseDmg --console=plain
+            cp "$base"/dmg/*.dmg "dist/overport-galaxyxr-$version-$PLATFORM.dmg"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: galaxyxr-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
+
   release:
-    needs: [android, windows]
+    needs: [android, windows, desktop-unix]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -144,16 +197,26 @@ jobs:
           pattern: galaxyxr-windows
           path: dist
           merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: galaxyxr-linux-*
+          path: dist
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: galaxyxr-macos-*
+          path: dist
+          merge-multiple: true
       - name: Checksums
         run: |
           cd dist
-          sha256sum *.apk *.jar *.zip > SHA256SUMS.txt
+          sha256sum *.apk *.jar *.zip *.tar.gz *.dmg > SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
           name: galaxyxr-release
           path: dist/*
           if-no-files-found: error
-      - name: Publish both applications
+      - name: Publish all applications
         if: startsWith(github.ref, 'refs/tags/galaxyxr-v')
         env:
           GH_TOKEN: ${{ github.token }}

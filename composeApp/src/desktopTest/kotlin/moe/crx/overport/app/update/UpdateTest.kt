@@ -17,7 +17,7 @@ class UpdateTest {
     }
 
     @Test fun choosesOnlyNewStablePlatformRelease() {
-        for (platform in listOf("android.apk", "windows-x64.zip")) {
+        for (platform in listOf("android.apk", "windows-x64.zip", "linux-x64.tar.gz", "macos-arm64.dmg", "macos-x64.dmg")) {
             assertEquals("0.1.1", UpdateClient.select(release(platform), "0.1.0", platform)?.version)
             assertNull(UpdateClient.select(release(platform), "0.1.1", platform))
             assertNull(UpdateClient.select(release(platform), "0.2.0", platform))
@@ -29,6 +29,15 @@ class UpdateTest {
         }
         assertTrue(UpdateClient.newer("0.10.0", "0.9.9"))
         assertFalse(UpdateClient.newer("0.1.20", "0.2.0"))
+    }
+
+    @Test fun selectsDesktopArchitecture() {
+        assertEquals("windows-x64.zip", desktopUpdatePlatform("Windows 11", "amd64"))
+        assertEquals("linux-x64.tar.gz", desktopUpdatePlatform("Linux", "amd64"))
+        assertEquals("macos-x64.dmg", desktopUpdatePlatform("Mac OS X", "x86_64"))
+        assertEquals("macos-arm64.dmg", desktopUpdatePlatform("Mac OS X", "aarch64"))
+        assertEquals("macos-arm64.dmg", desktopUpdatePlatform("Mac OS X", "arm64"))
+        assertFails { desktopUpdatePlatform("Linux", "aarch64") }
     }
 
     @Test fun rejectsCorruptTruncatedAndOversizeDownloads() {
