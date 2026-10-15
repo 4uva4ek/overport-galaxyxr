@@ -1,3 +1,5 @@
+<img src="composeApp/icons/app-icon.png" width="96" alt="">
+
 # Overport Galaxy XR
 
 A Samsung Galaxy XR fork of [ovrport/app](https://github.com/ovrport/app), maintained by **4uva4ek**.

@@ -25,7 +25,7 @@ import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import overportapp.composeapp.generated.resources.Res
 import overportapp.composeapp.generated.resources.select_a_file
-import overportapp.composeapp.generated.resources.window_icon
+import overportapp.composeapp.generated.resources.app_icon
 import java.awt.Frame
 import java.awt.datatransfer.DataFlavor
 import java.io.*
@@ -35,7 +35,7 @@ fun main(args: Array<String>) = application {
     Window(
         onCloseRequest = ::exitApplication,
         title = "Overport Galaxy XR",
-        icon = painterResource(Res.drawable.window_icon),
+        icon = painterResource(Res.drawable.app_icon),
     ) {
         val dataDir = defaultWorkspace()
         dataDir.mkdirs()

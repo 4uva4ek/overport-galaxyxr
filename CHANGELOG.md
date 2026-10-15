@@ -1,5 +1,11 @@
 # Changelog
 
+## Galaxy XR 0.3.1 — 2026-10-15
+
+- Windows: the window and taskbar icon is the full application icon (white lightning on black).
+  The previous window icon was a white glyph on a transparent background and disappeared on
+  light title bars and taskbars.
+
 ## Galaxy XR 0.3.0 — 2026-10-14
 
 - Hand-tuned bind pose (`--hand-bind=edited`, default): the adapter replaces the rebuilt
