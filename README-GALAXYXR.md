@@ -1,7 +1,8 @@
 # Overport Galaxy XR
 
 Форк [ovrport/app](https://github.com/ovrport/app), поддерживаемый **4uva4ek**.
-Подготавливает APK приложений Quest для Samsung Galaxy XR.
+Подготавливает APK приложений Quest только для Samsung Galaxy XR. Версии самого
+патчера для Windows, macOS, Linux и Android сохраняются.
 
 ## Графическое приложение
 
@@ -30,7 +31,7 @@
 CLI поставляется дополнительно и требует Java 21.
 
 ```sh
-java -jar overport-galaxyxr-0.3.0-cli.jar patch --input=game.apk --target=galaxyxr --output=patched
+java -jar overport-galaxyxr-0.3.0-cli.jar patch --input=game.apk --output=patched
 ```
 
 Для каждого приложения профиль Galaxy XR по умолчанию задаёт:
@@ -51,20 +52,27 @@ java -jar overport-galaxyxr-0.3.0-cli.jar patch --input=game.apk --target=galaxy
 Раскладка контроллеров соответствует Quest. Переназначения AB/XY нет;
 в Beat Saber паузу открывает отдельная кнопка Menu левого контроллера.
 
+Исправление вибрации применяется ко всем играм через общий адаптер: длинные
+команды выполняются порциями по 20 мс с продлением до заданного срока.
+Нулевая амплитуда и Stop прекращают продление, устраняя длинный хвост при
+неработающей отмене в нижележащем runtime. Длительные эффекты сохраняются.
+Для уже обработанных игр нужно заново подготовить APK новым патчером.
+`--target=galaxyxr` поддерживается для совместимости; другие цели отклоняются.
+
 ## Настройки
 
 ```sh
 # Снизить нагрузку на GPU:
-java -jar overport-galaxyxr-0.3.0-cli.jar patch --input=game.apk --target=galaxyxr --texture-size=2320x2700
+java -jar overport-galaxyxr-0.3.0-cli.jar patch --input=game.apk --texture-size=2320x2700
 
 # Вернуть рекомендации runtime и управление производительностью приложению:
-java -jar overport-galaxyxr-0.3.0-cli.jar patch --input=game.apk --target=galaxyxr --texture-size=native --performance=app
+java -jar overport-galaxyxr-0.3.0-cli.jar patch --input=game.apk --texture-size=native --performance=app
 
 # Трекинг рук: on запрашивает разрешение всегда, off никогда (по умолчанию auto):
-java -jar overport-galaxyxr-0.3.0-cli.jar patch --input=game.apk --target=galaxyxr --hands=off
+java -jar overport-galaxyxr-0.3.0-cli.jar patch --input=game.apk --hands=off
 
 # Вернуть закрытый диспетчер Overport 3.4.3 с исправлением ограничения swapchain:
-java -jar overport-galaxyxr-0.3.0-cli.jar patch --input=game.apk --target=galaxyxr --dispatcher=overport
+java -jar overport-galaxyxr-0.3.0-cli.jar patch --input=game.apk --dispatcher=overport
 ```
 
 Трекинг рук Android XR требует runtime-разрешения `android.permission.HAND_TRACKING`.

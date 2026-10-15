@@ -44,7 +44,6 @@ val PATCH_LAUNCHER_ENTRY = Patch("patch_launcher_entry") {
                                 JSONArray().put(createAction("android.intent.action.MAIN"))
                                     .put(createCategory("android.intent.category.LAUNCHER"))
                                     .put(createCategory("com.oculus.intent.category.VR"))
-                                    .put(createCategory("com.yvr.intent.category.VR"))
                                     .put(createCategory("org.khronos.openxr.intent.category.IMMERSIVE_HMD"))
                             }
                         }

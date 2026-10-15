@@ -8,7 +8,6 @@ import moe.crx.overport.patches.PATCH_TEXTURE_SIZE
 import moe.crx.overport.patches.PATCH_VERBOSE_RUNTIME
 import moe.crx.overport.patches.PATCH_GALAXYXR_PERFORMANCE
 import moe.crx.overport.patches.TextureSize
-import moe.crx.overport.patching.PatchStore
 import moe.crx.overport.patching.PatcherContext
 import moe.crx.overport.utils.DesktopUtil.defaultWorkspace
 import moe.crx.overport.utils.ImageIOIconResizer
@@ -52,30 +51,30 @@ object PatchApplicationCommand : CliCommand() {
         println("You can also specify arguments for a specific patch using <patch name>=<comma-separated arguments>.")
         println()
         println("--target=<value>")
-        println("Specifies target platform preset. Available targets: ${GalaxyXrPatches.TARGET}.")
-        println("Uses the recommended patch set for that target")
+        println("Optional compatibility argument; Galaxy XR is the only supported target.")
+        println("Always uses the Galaxy XR recommended patch set")
         println("(unless --patches is also specified, which takes precedence).")
         println("Galaxy XR defaults to 3552x3840 per eye; --texture-size overrides this.")
         println()
         println("--version=<value>")
         println("Specifies which overport version to use for patching.")
         println("Value also could be \"experimental\" or \"latest\".")
-        println("Defaults to 3.4.3-aa54c3f for Galaxy XR, latest otherwise. Use \"overport install\" to list versions.")
+        println("Defaults to 3.4.3-aa54c3f. Use \"overport install\" to list versions.")
         println()
         println("--texture-size=WIDTHxHEIGHT | native")
         println("Override the per-eye texture recommendation in this APK (64..4096 per dimension).")
         println("Omit to use the target default; native clears the override. Games may apply their own scale.")
-        println("--performance=max | app (Galaxy XR only): default max requests CPU/GPU BOOST and supported 90 Hz.")
+        println("--performance=max | app: default max requests CPU/GPU BOOST and supported 90 Hz.")
         println("Use app to restore application-controlled performance and refresh rate.")
-        println("--foveation=eye | app (Galaxy XR only): experimental eye tracking for application foveation profiles; default app.")
-        println("--hands=auto | on | off (Galaxy XR only): request the Android XR hand tracking permission at launch.")
+        println("--foveation=eye | app: experimental eye tracking for application foveation profiles; default app.")
+        println("--hands=auto | on | off: request the Android XR hand tracking permission at launch.")
         println("Default auto requests it only when the game declares Quest hand tracking; on forces it, off never asks.")
-        println("--hand-mesh=fix | runtime (Galaxy XR only): fix (default) rebuilds the incomplete runtime hand skeleton for OVRPlugin.")
-        println("--hand-frames=meta | runtime (Galaxy XR only): meta (default) re-rolls the wrist and little-metacarpal joint frames")
+        println("--hand-mesh=fix | runtime: fix (default) rebuilds the incomplete runtime hand skeleton for OVRPlugin.")
+        println("--hand-frames=meta | runtime: meta (default) re-rolls the wrist and little-metacarpal joint frames")
         println("to the Meta runtime conventions that Quest hand rigs expect; runtime keeps the Galaxy XR frames.")
-        println("--hand-bind=edited | rebuild (Galaxy XR only): edited (default) uses the hand-tuned bind table built into the adapter;")
+        println("--hand-bind=edited | rebuild: edited (default) uses the hand-tuned bind table built into the adapter;")
         println("rebuild derives the bind pose from the runtime data only.")
-        println("--dispatcher=open | overport (Galaxy XR only): open (default) packages the open OpenXR dispatcher")
+        println("--dispatcher=open | overport: open (default) packages the open OpenXR dispatcher")
         println("(openxr-dispatcher-open ${moe.crx.overport.galaxyxr.OpenDispatcher.VERSION}) as libopenxr_loader.so;")
         println("overport keeps the closed Overport dispatcher with the hash-guarded swapchain abort fix.")
         println("--verbose-runtime enables runtime diagnostics in this APK without changing device properties.")
@@ -103,7 +102,7 @@ object PatchApplicationCommand : CliCommand() {
         var patches: Map<String, List<String>>? = null,
         var nameFormat: String? = null,
         var overportVersion: String? = null,
-        var target: String? = null,
+        var target: String = GalaxyXrPatches.TARGET,
         var textureSize: String? = null,
         var verboseRuntime: Boolean = false,
         var performance: String? = null,
@@ -152,33 +151,37 @@ object PatchApplicationCommand : CliCommand() {
     override suspend fun execute(args: List<String>): Boolean {
         val parsed = scanArguments(args)
 
+        if (parsed.target != GalaxyXrPatches.TARGET) {
+            println("Unsupported target '${parsed.target}'. This patcher supports Galaxy XR only.")
+            return false
+        }
         val inputFile = parsed.inputFile?.let { File(it) } ?: return false
-        if (parsed.foveation != null && (parsed.target != GalaxyXrPatches.TARGET || parsed.foveation !in listOf("app", "eye"))) {
-            println("--foveation requires --target=galaxyxr and a value of eye or app.")
+        if (parsed.foveation != null && (parsed.foveation !in listOf("app", "eye"))) {
+            println("--foveation requires a value of eye or app.")
             return false
         }
-        if (parsed.performance != null && (parsed.target != GalaxyXrPatches.TARGET || parsed.performance !in listOf("max", "app"))) {
-            println("--performance requires --target=galaxyxr and a value of max or app.")
+        if (parsed.performance != null && (parsed.performance !in listOf("max", "app"))) {
+            println("--performance requires a value of max or app.")
             return false
         }
-        if (parsed.hands != null && (parsed.target != GalaxyXrPatches.TARGET || parsed.hands !in listOf("auto", "on", "off"))) {
-            println("--hands requires --target=galaxyxr and a value of auto, on or off.")
+        if (parsed.hands != null && (parsed.hands !in listOf("auto", "on", "off"))) {
+            println("--hands requires a value of auto, on or off.")
             return false
         }
-        if (parsed.handMesh != null && (parsed.target != GalaxyXrPatches.TARGET || parsed.handMesh !in listOf("fix", "runtime"))) {
-            println("--hand-mesh requires --target=galaxyxr and a value of fix or runtime.")
+        if (parsed.handMesh != null && (parsed.handMesh !in listOf("fix", "runtime"))) {
+            println("--hand-mesh requires a value of fix or runtime.")
             return false
         }
-        if (parsed.handFrames != null && (parsed.target != GalaxyXrPatches.TARGET || parsed.handFrames !in listOf("meta", "runtime"))) {
-            println("--hand-frames requires --target=galaxyxr and a value of meta or runtime.")
+        if (parsed.handFrames != null && (parsed.handFrames !in listOf("meta", "runtime"))) {
+            println("--hand-frames requires a value of meta or runtime.")
             return false
         }
-        if (parsed.handBind != null && (parsed.target != GalaxyXrPatches.TARGET || parsed.handBind !in listOf("rebuild", "edited"))) {
-            println("--hand-bind requires --target=galaxyxr and a value of edited or rebuild.")
+        if (parsed.handBind != null && (parsed.handBind !in listOf("rebuild", "edited"))) {
+            println("--hand-bind requires a value of edited or rebuild.")
             return false
         }
-        if (parsed.dispatcher != null && (parsed.target != GalaxyXrPatches.TARGET || parsed.dispatcher !in GalaxyXrPatches.DISPATCHERS)) {
-            println("--dispatcher requires --target=galaxyxr and a value of open or overport.")
+        if (parsed.dispatcher != null && (parsed.dispatcher !in GalaxyXrPatches.DISPATCHERS)) {
+            println("--dispatcher requires a value of open or overport.")
             return false
         }
 
@@ -203,14 +206,9 @@ object PatchApplicationCommand : CliCommand() {
 
         val workspace = parsed.workspace?.let { File(it) } ?: defaultWorkspace()
 
-        val patches = (parsed.patches ?: when (parsed.target) {
-            GalaxyXrPatches.TARGET -> GalaxyXrPatches.recommended(parsed.dispatcher ?: GalaxyXrPatches.DISPATCHER_OPEN)
-            null -> PatchStore.recommended().associate { it.name to listOf() }
-            else -> {
-                println("Unknown target '${parsed.target}'. Available targets: ${GalaxyXrPatches.TARGET}. Using the default patch set.")
-                PatchStore.recommended().associate { it.name to listOf() }
-            }
-        }).toMutableMap()
+        val patches = (parsed.patches ?: GalaxyXrPatches.recommended(
+            parsed.dispatcher ?: GalaxyXrPatches.DISPATCHER_OPEN
+        )).toMutableMap()
         parsed.textureSize?.let { patches[PATCH_TEXTURE_SIZE.name] = listOf(it) }
         if (parsed.verboseRuntime) patches[PATCH_VERBOSE_RUNTIME.name] = emptyList()
         if (parsed.performance != null || parsed.foveation != null || parsed.hands != null || parsed.handMesh != null || parsed.handFrames != null || parsed.handBind != null) {
@@ -221,7 +219,7 @@ object PatchApplicationCommand : CliCommand() {
 
         val nameFormat = parsed.nameFormat ?: DEFAULT_FORMAT
 
-        val version = parsed.overportVersion ?: if (parsed.target == GalaxyXrPatches.TARGET) GalaxyXrPatches.DEFAULT_RUNTIME else "latest"
+        val version = parsed.overportVersion ?: GalaxyXrPatches.DEFAULT_RUNTIME
 
         println("overport cli utility, version ${VersionManager.VERSION} (${VersionManager.DISTRIBUTION})")
         println("Input APK: ${inputFile.absolutePath}")
@@ -238,9 +236,7 @@ object PatchApplicationCommand : CliCommand() {
         patcher.checkout()
         waitingForLibraries.cancelAndJoin()
 
-        parsed.target?.let {
-            println("Target platform: $it")
-        }
+        println("Target platform: ${GalaxyXrPatches.TARGET}")
         println("Using overport version: ${patcher.overportVersion()}")
 
         val waitingForDecompilation = updateLine {

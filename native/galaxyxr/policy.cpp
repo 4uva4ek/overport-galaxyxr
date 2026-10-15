@@ -234,10 +234,12 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrRequestDisplayRefreshRateFB(XrSessio
 
 #include "eye_foveation.inc"
 #include "hand_tracking.inc"
+#include "haptics.inc"
 
 extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrDestroySession(XrSession session) {
     auto destroy = symbol<PFN_xrDestroySession>("xrDestroySession");
     if (!destroy) return XR_ERROR_FUNCTION_UNSUPPORTED;
+    haptics.forgetSession(session);
     XrResult result = destroy(session);
     if (XR_SUCCEEDED(result)) { std::lock_guard<std::mutex> lock(stateMutex); forgetEyeSession(session); sessions.erase(session); }
     return result;
@@ -246,6 +248,11 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrDestroySession(XrSession session) {
 extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrDestroyInstance(XrInstance instance) {
     auto destroy = symbol<PFN_xrDestroyInstance>("xrDestroyInstance");
     if (!destroy) return XR_ERROR_FUNCTION_UNSUPPORTED;
+    {
+        std::lock_guard<std::mutex> lock(stateMutex);
+        for (const auto& entry : sessions)
+            if (entry.second.instance == instance) haptics.forgetSession(entry.first);
+    }
     XrResult result = destroy(instance);
     if (XR_SUCCEEDED(result)) {
         std::lock_guard<std::mutex> lock(stateMutex);
@@ -266,12 +273,14 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrGetInstanceProcAddr(XrInstance insta
 #define HOOK(fn) if (!strcmp(name, #fn)) *function = reinterpret_cast<PFN_xrVoidFunction>(&fn)
     HOOK(xrGetInstanceProcAddr);
     HOOK(xrCreateInstance); HOOK(xrDestroyInstance);
-    HOOK(xrCreateSession); HOOK(xrDestroySession); HOOK(xrBeginSession);
+    HOOK(xrCreateSession); HOOK(xrDestroySession); HOOK(xrBeginSession); HOOK(xrEndSession);
+    HOOK(xrApplyHapticFeedback); HOOK(xrStopHapticFeedback);
+    HOOK(xrCreateAction); HOOK(xrDestroyAction); HOOK(xrDestroyActionSet);
     HOOK(xrPerfSettingsSetPerformanceLevelEXT); HOOK(xrRequestDisplayRefreshRateFB);
     HOOK(xrCreateFoveationProfileFB); HOOK(xrDestroyFoveationProfileFB);
     HOOK(xrCreateSwapchain); HOOK(xrDestroySwapchain); HOOK(xrUpdateSwapchainFB); HOOK(xrWaitFrame);
 #ifdef GXR_INPUT_DIAGNOSTICS
-    HOOK(xrSyncActions); HOOK(xrCreateAction); HOOK(xrSuggestInteractionProfileBindings);
+    HOOK(xrSyncActions); HOOK(xrSuggestInteractionProfileBindings);
     HOOK(xrGetActionStateBoolean); HOOK(xrGetCurrentInteractionProfile);
 #endif
     HAND_HOOK(xrCreateHandTrackerEXT, origCreateHandTracker); HAND_HOOK(xrDestroyHandTrackerEXT, origDestroyHandTracker);

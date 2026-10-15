@@ -14,14 +14,17 @@ Desktop packages include Java; Linux requires a graphical desktop and its system
 On Android, install the APK and open **Overport Galaxy XR**.
 Select a game APK, adjust resolution/performance if needed, and save the converted APK.
 
-The Galaxy XR preset applies to every APK you convert: **3552×3840 per eye**,
+Galaxy XR is the only supported headset target. The preset applies to every APK you convert: **3552×3840 per eye**,
 **CPU/GPU BOOST** and **90 Hz when supported**, Android XR metadata, a signature-guarded Unity
 EGL compatibility fix, and a fix for Overport's 4096-pixel swapchain abort.
 Games still control their render scale; runtime hints do not guarantee 90 FPS.
 
 ```sh
-java -jar overport-galaxyxr-0.1.2-cli.jar patch --input=game.apk --target=galaxyxr --output=patched
+java -jar overport-galaxyxr-0.1.2-cli.jar patch --input=game.apk --output=patched
 ```
+
+Haptics uses cancellable 20 ms pulses for all converted games, preserving sustained effects.
+Already converted games need conversion again to receive adapter updates.
 
 The optional CLI requires Java 21. The target uses the inspected ARM64 runtime 3.4.3-aa54c3f.
 Use `--texture-size=2320x2700` to reduce rendering load, or `--texture-size=native`

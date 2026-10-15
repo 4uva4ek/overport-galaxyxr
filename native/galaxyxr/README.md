@@ -49,6 +49,22 @@ clamps `XR_FB_hand_tracking_mesh` parents above 25 to 0 (the rebuilt skeleton
 already lists the palm as the wrist parent), and passes oversized swapchains to
 the runtime. Logs: `adb logcat -s OpenXRDispatch`.
 
+## Haptic cancellation
+
+The adapter hooks scalar vibration and Stop through GIPA for every converted
+application. Positive durations above 20 ms are sent in 20 ms slices, renewed
+roughly every 10 ms until the requested deadline. Zero amplitude and Stop cancel
+renewals; session/action teardown cancels outstanding work. Explicit subaction
+paths keep the hands independent. Short effects, other haptic types and extension
+chains are forwarded directly.
+
+In Arizona Sunshine, captured menu commands requested two seconds followed by
+zero amplitude about 33 ms later. Explicit Stop alone still left the physical
+tail; a temporary 20 ms pulse test removed it. The exact downstream component
+ignoring cancellation has not been isolated. The scheduler is covered by host
+and ARM64 mock-backend tests, including a backend whose Stop does nothing; the
+complete scheduler still needs a sustained-effects gameplay check.
+
 ## Build and validation
 
 Linux/WSL, Android NDK r29, Python 3, host C++17 compiler, Java 21:
@@ -68,6 +84,10 @@ g++ -std=c++17 -O2 -Wall -Wextra -Werror -Wno-missing-field-initializers \
   -Inative/galaxyxr/include native/galaxyxr/test_hand_tracking.cpp -ldl -pthread \
   -o native/galaxyxr/build/test_hand_tracking
 native/galaxyxr/build/test_hand_tracking
+g++ -std=c++17 -O2 -Wall -Wextra -Werror -Wno-missing-field-initializers \
+  -Inative/galaxyxr/include native/galaxyxr/test_haptics.cpp -ldl -pthread \
+  -o native/galaxyxr/build/test_haptics
+native/galaxyxr/build/test_haptics
 ./gradlew :overportcli:shadowJar
 ```
 

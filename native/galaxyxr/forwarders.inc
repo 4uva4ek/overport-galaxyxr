@@ -169,11 +169,6 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrReleaseSwapchainImage(XrSwapchain   
     return fn ? fn(swapchain, releaseInfo) : XR_ERROR_FUNCTION_UNSUPPORTED;
 }
 
-extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrEndSession(XrSession                                   session) {
-    auto fn = symbol<PFN_xrEndSession>("xrEndSession");
-    return fn ? fn(session) : XR_ERROR_FUNCTION_UNSUPPORTED;
-}
-
 extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrRequestExitSession(XrSession                                   session) {
     auto fn = symbol<PFN_xrRequestExitSession>("xrRequestExitSession");
     return fn ? fn(session) : XR_ERROR_FUNCTION_UNSUPPORTED;
@@ -222,25 +217,6 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrCreateActionSet(XrInstance          
     XrActionSet*                                actionSet) {
     auto fn = symbol<PFN_xrCreateActionSet>("xrCreateActionSet");
     return fn ? fn(instance, createInfo, actionSet) : XR_ERROR_FUNCTION_UNSUPPORTED;
-}
-
-extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrDestroyActionSet(XrActionSet                                 actionSet) {
-    auto fn = symbol<PFN_xrDestroyActionSet>("xrDestroyActionSet");
-    return fn ? fn(actionSet) : XR_ERROR_FUNCTION_UNSUPPORTED;
-}
-
-#ifndef GXR_INPUT_DIAGNOSTICS
-extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrCreateAction(XrActionSet                                 actionSet,
-    const XrActionCreateInfo*                   createInfo,
-    XrAction*                                   action) {
-    auto fn = symbol<PFN_xrCreateAction>("xrCreateAction");
-    return fn ? fn(actionSet, createInfo, action) : XR_ERROR_FUNCTION_UNSUPPORTED;
-}
-#endif
-
-extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrDestroyAction(XrAction                                    action) {
-    auto fn = symbol<PFN_xrDestroyAction>("xrDestroyAction");
-    return fn ? fn(action) : XR_ERROR_FUNCTION_UNSUPPORTED;
 }
 
 #ifndef GXR_INPUT_DIAGNOSTICS
@@ -320,19 +296,6 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrGetInputSourceLocalizedName(XrSessio
     char*                                       buffer) {
     auto fn = symbol<PFN_xrGetInputSourceLocalizedName>("xrGetInputSourceLocalizedName");
     return fn ? fn(session, getInfo, bufferCapacityInput, bufferCountOutput, buffer) : XR_ERROR_FUNCTION_UNSUPPORTED;
-}
-
-extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrApplyHapticFeedback(XrSession                                   session,
-    const XrHapticActionInfo*                   hapticActionInfo,
-    const XrHapticBaseHeader*                   hapticFeedback) {
-    auto fn = symbol<PFN_xrApplyHapticFeedback>("xrApplyHapticFeedback");
-    return fn ? fn(session, hapticActionInfo, hapticFeedback) : XR_ERROR_FUNCTION_UNSUPPORTED;
-}
-
-extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrStopHapticFeedback(XrSession                                   session,
-    const XrHapticActionInfo*                   hapticActionInfo) {
-    auto fn = symbol<PFN_xrStopHapticFeedback>("xrStopHapticFeedback");
-    return fn ? fn(session, hapticActionInfo) : XR_ERROR_FUNCTION_UNSUPPORTED;
 }
 
 extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrInitializeLoaderKHR(const XrLoaderInitInfoBaseHeaderKHR*        loaderInitInfo) {

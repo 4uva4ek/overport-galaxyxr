@@ -35,6 +35,8 @@ jobs:
           g++ -std=c++17 -O2 -Wall -Wextra -Werror -Wno-missing-field-initializers -Inative/galaxyxr/include native/galaxyxr/test_policy.cpp -ldl -pthread -o native/galaxyxr/build/test_policy
           native/galaxyxr/build/test_policy
           native/galaxyxr/build/test_policy app
+          g++ -std=c++17 -O2 -Wall -Wextra -Werror -Wno-missing-field-initializers -Inative/galaxyxr/include native/galaxyxr/test_haptics.cpp -ldl -pthread -o native/galaxyxr/build/test_haptics
+          native/galaxyxr/build/test_haptics
           g++ -std=c++17 -O2 -Wall -Wextra -Werror -Wno-missing-field-initializers -Inative/galaxyxr/include native/galaxyxr/test_hand_tracking.cpp -ldl -pthread -o native/galaxyxr/build/test_hand_tracking
           native/galaxyxr/build/test_hand_tracking
           native/galaxyxr/build/test_hand_tracking edited

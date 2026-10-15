@@ -56,15 +56,10 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrSyncActions(XrSession session, const
     }
     return result;
 }
-extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrCreateAction(XrActionSet set, const XrActionCreateInfo* info, XrAction* action) {
-    auto fn = symbol<PFN_xrCreateAction>("xrCreateAction");
-    auto result = fn ? fn(set, info, action) : XR_ERROR_FUNCTION_UNSUPPORTED;
-    if (XR_SUCCEEDED(result)) {
-        std::lock_guard<std::mutex> lock(inputMutex);
-        actionNames[*action] = info->actionName;
-        LOG("INPUT action %p name=%s type=%d", *action, info->actionName, info->actionType);
-    }
-    return result;
+static void logInputAction(const XrActionCreateInfo* info, XrAction action) {
+    std::lock_guard<std::mutex> lock(inputMutex);
+    actionNames[action] = info->actionName;
+    LOG("INPUT action %p name=%s type=%d", action, info->actionName, info->actionType);
 }
 extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrGetCurrentInteractionProfile(XrSession session, XrPath topLevel, XrInteractionProfileState* state) {
     auto fn = symbol<PFN_xrGetCurrentInteractionProfile>("xrGetCurrentInteractionProfile");
