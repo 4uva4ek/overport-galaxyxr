@@ -13,6 +13,8 @@
     <string name="open_dispatcher">Open OpenXR dispatcher</string>
     <string name="open_dispatcher_on_hint">openxr-dispatcher-open 1.0.0 replaces the closed Overport dispatcher; large swapchains go to the runtime.</string>
     <string name="open_dispatcher_off_hint">Closed Overport dispatcher 3.4.3 with the swapchain abort fix.</string>
+    <string name="fps_hud">FPS overlay</string>
+    <string name="fps_hud_hint">Shows app frame submissions per second and display refresh rate while playing. Requires reconverting the game; off by default.</string>
     <string name="show_advanced">Advanced patches</string>
     <string name="hide_advanced">Hide advanced patches</string>
     <string name="save_patched_apk">Save patched APK</string>

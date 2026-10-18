@@ -32,6 +32,25 @@ to restore the runtime's recommendation. `--performance=app` restores applicatio
 control of CPU/GPU hints and refresh rate. Explicit `--patches` overrides the preset.
 All graphical applications include these settings; additional patches are under Advanced.
 
+### Optional FPS overlay
+
+Enable **FPS overlay** in the Galaxy XR conversion settings, or add
+`--fps-hud=on` to the CLI command. It defaults to off. Reconvert and restart the
+game to change this option; existing converted APKs are unchanged.
+
+The small view-locked panel shows **APP FPS** (successful app projection frame
+submissions per second) separately from the runtime's current **Hz**. It does
+not count compositor refreshes as game frames, and it is not a GPU-completion
+or unique-image counter. Repeatedly submitting the same image can still count
+as submissions. Use demanding gameplay scenes when comparing resolutions.
+
+The overlay uses `XR_KHR_android_surface_swapchain` with a CPU-painted Android
+Surface, so it does not alter the game's GLES/Vulkan state. Unsupported surface
+creation, missing Android VM information, or a full composition-layer budget
+leave the original game layers unchanged. No root or overlay permission is
+needed. Host checks cover frame counting and lifecycle; device validation is
+still required before relying on the overlay for performance tuning.
+
 [Russian usage guide](README-GALAXYXR.md) | [Validation](docs/BEAT-SABER-GALAXYXR-2026-10-13.md) |
 [Native adapter/build](native/galaxyxr/README.md) | [Upstream README](README-UPSTREAM.md)
 

@@ -286,9 +286,7 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrReleaseSwapchainImage(XrSwapchain ch
 #endif
     return result;
 }
-extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrEndFrame(XrSession session,const XrFrameEndInfo* info) {
-    auto fn=symbol<PFN_xrEndFrame>("xrEndFrame");
-    auto result=fn?fn(session,info):XR_ERROR_FUNCTION_UNSUPPORTED;
+static void qcomOnEndFrame(XrSession session,const XrFrameEndInfo* info,XrResult result) {
 #if defined(__ANDROID__) || defined(GXR_QCOM_TEST)
     if(result==XR_SUCCESS && info) {
         std::lock_guard<std::mutex> lock(qcomMutex);
@@ -309,6 +307,7 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrEndFrame(XrSession session,const XrF
                 it->second.mapped=runtimeDiagnosticCenter(layer->views[eye].fov,it->second.diagnosticX[eye],it->second.diagnosticY[eye]) && it->second.mapped;
         }
     }
+#else
+    (void)session; (void)info; (void)result;
 #endif
-    return result;
 }
