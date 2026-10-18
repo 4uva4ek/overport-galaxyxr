@@ -1,9 +1,11 @@
 package moe.crx.overport.app.composables
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import moe.crx.overport.galaxyxr.FoveationSettings
 import org.jetbrains.compose.resources.stringResource
@@ -54,7 +56,28 @@ fun FoveationOptions(mode: String, onMode: (String) -> Unit, quality: FoveationS
 
 @Composable
 private fun QualitySlider(label: String, value: Float, range: ClosedFloatingPointRange<Float>, hint: String, onValue: (Float) -> Unit) {
-    Text("$label: $value", style = MaterialTheme.typography.labelLarge)
-    Slider(value, onValueChange = { onValue((round(it * 1000) / 1000).coerceIn(range)) }, valueRange = range)
+    var input by remember { mutableStateOf(value.toString()) }
+    fun parsed(text: String) = text.trim().replace(',', '.').toFloatOrNull()
+    LaunchedEffect(value) {
+        if (parsed(input) != value) input = value.toString()
+    }
+    val number = parsed(input)
+    val valid = number != null && number.isFinite() && number in range
+    OutlinedTextField(
+        value = input,
+        onValueChange = { text ->
+            input = text
+            val next = parsed(text)
+            if (next != null && next.isFinite() && next in range) onValue(next)
+        },
+        label = { Text(label) },
+        singleLine = true,
+        isError = !valid,
+        supportingText = { Text("${range.start} – ${range.endInclusive}") },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    // Keep the exact supported endpoints (density starts at 0.125), otherwise snap to 0.05.
+    Slider(value, onValueChange = { onValue((round(it * 20) / 20).coerceIn(range)) }, valueRange = range)
     Text(hint, style = MaterialTheme.typography.bodySmall)
 }
