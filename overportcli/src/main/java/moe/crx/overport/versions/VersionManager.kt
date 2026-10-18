@@ -11,7 +11,7 @@ class VersionManager(val workingDirectory: File) {
     companion object {
         val json = Json { ignoreUnknownKeys = true }
         const val VERSION = "1.2.3"
-        const val DISTRIBUTION_VERSION = "0.3.4"
+        const val DISTRIBUTION_VERSION = "0.3.5"
         const val DISTRIBUTION_TAG = "galaxyxr-v" + DISTRIBUTION_VERSION
         const val DISTRIBUTION = "Galaxy XR " + DISTRIBUTION_VERSION
 

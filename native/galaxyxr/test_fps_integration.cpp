@@ -5,6 +5,7 @@
 #include <cassert>
 
 static bool surfaceSupported = true, rejectSurface = false;
+static bool exportInit = true;
 static int creations = 0, initCalls = 0, beginCalls = 0;
 static const char* eyeNames[] = {XR_FB_SWAPCHAIN_UPDATE_STATE_EXTENSION_NAME,
     XR_FB_FOVEATION_EXTENSION_NAME, XR_FB_FOVEATION_CONFIGURATION_EXTENSION_NAME,
@@ -53,13 +54,18 @@ static XrResult end(XrSession, const XrFrameEndInfo*) { return XR_SUCCESS; }
 static XrResult destroyInstance(XrInstance) { return XR_SUCCESS; }
 static XrResult destroySession(XrSession) { return XR_SUCCESS; }
 static XrResult get(XrInstance, const char* name, PFN_xrVoidFunction* fn) {
+    if (!strcmp(name, "xrInitializeLoaderKHR")) {
+        *fn = reinterpret_cast<PFN_xrVoidFunction>(&initialize);
+        return XR_SUCCESS;
+    }
     *fn = reinterpret_cast<PFN_xrVoidFunction>(testSymbol(name));
     return *fn ? XR_SUCCESS : XR_ERROR_FUNCTION_UNSUPPORTED;
 }
 static void* testSymbol(const char* name) {
 #define MOCK(api, fn) if (!strcmp(name, #api)) return reinterpret_cast<void*>(&fn)
     MOCK(xrEnumerateInstanceExtensionProperties, enumerate); MOCK(xrCreateInstance, create);
-    MOCK(xrInitializeLoaderKHR, initialize); MOCK(xrCreateSession, createSession);
+    if (exportInit) { MOCK(xrInitializeLoaderKHR, initialize); }
+    MOCK(xrCreateSession, createSession);
     MOCK(xrGetSystemProperties, properties); MOCK(xrGetInstanceProcAddr, get);
     MOCK(xrPollEvent, poll); MOCK(xrWaitFrame, wait); MOCK(xrBeginFrame, begin); MOCK(xrEndFrame, end);
     MOCK(xrDestroySession, destroySession); MOCK(xrDestroyInstance, destroyInstance);
@@ -67,6 +73,10 @@ static void* testSymbol(const char* name) {
 #undef MOCK
 }
 int main() {
+    exportInit = false;
+    assert(xrInitializeLoaderKHR(nullptr) == XR_SUCCESS && initCalls == 1);
+    exportInit = true;
+    initCalls = 0;
     testConfig = "performance=app\nfoveation=runtime-eye\nfps_hud=on\n";
     struct AndroidInit { XrStructureType type; const void* next; void* vm; void* context; } android{
         XR_TYPE_LOADER_INIT_INFO_ANDROID_KHR, nullptr, reinterpret_cast<void*>(3), nullptr};

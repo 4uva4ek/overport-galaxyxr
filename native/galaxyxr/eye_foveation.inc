@@ -1,7 +1,12 @@
 // Optional app-local eye foveation. Preserve the application's level and off profiles.
 // Keep eye profiles alive internally for per-frame updates after the app releases them.
 struct EyeProfile { XrSession session; bool eye; bool released = false; };
-struct EyeSwapchain { XrSession session; XrFoveationProfileFB profile = XR_NULL_HANDLE; bool forced = false; };
+struct EyeSwapchain {
+    XrSession session; XrFoveationProfileFB profile = XR_NULL_HANDLE; bool forced = false;
+    XrFoveationProfileFB alternate = XR_NULL_HANDLE;
+    std::deque<uint32_t> acquired;
+    std::unordered_map<uint32_t,bool> imageAlternate;
+};
 static std::unordered_map<XrFoveationProfileFB, EyeProfile> eyeProfiles;
 static std::unordered_map<XrSwapchain, EyeSwapchain> eyeSwapchains;
 
@@ -15,7 +20,7 @@ static void forgetEyeSession(XrSession session) { // stateMutex held; runtime al
 static void collectEyeProfile(XrFoveationProfileFB profile) { // stateMutex held
     auto it = eyeProfiles.find(profile);
     if (it == eyeProfiles.end() || !it->second.released) return;
-    for (const auto& entry : eyeSwapchains) if (entry.second.profile == profile) return;
+    for (const auto& entry : eyeSwapchains) if (entry.second.profile == profile || entry.second.alternate == profile) return;
     auto session = sessions.find(it->second.session);
     if (session != sessions.end() && session->second.policy.destroyFoveation)
         session->second.policy.destroyFoveation(profile);
@@ -68,15 +73,19 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrCreateSwapchain(XrSession session, c
     if (!fn) return XR_ERROR_FUNCTION_UNSUPPORTED;
     auto policy = sessionPolicy(session);
     // Explicit eye mode also handles runtimes that consume the app's foveation
-    // calls internally. Limit this direct path to stereo GLES color arrays;
-    // depth, overlays, static images and Vulkan keep the application path.
-    bool direct = policy.eye && policy.gles && info && info->arraySize == 2 &&
+    // calls internally. Vulkan requires the application to have integrated a
+    // fragment-density attachment; adding the XR flag alone cannot retrofit it.
+    bool existing = false, densityMap = false;
+    if (info) for (auto node = static_cast<const XrBaseInStructure*>(info->next); node; node = node->next)
+        if (node->type == XR_TYPE_SWAPCHAIN_CREATE_INFO_FOVEATION_FB) {
+            existing = true;
+            densityMap = (reinterpret_cast<const XrSwapchainCreateInfoFoveationFB*>(node)->flags &
+                XR_SWAPCHAIN_CREATE_FOVEATION_FRAGMENT_DENSITY_MAP_BIT_FB) != 0;
+        }
+    bool direct = policy.eye && (policy.gles || (policy.vulkan && densityMap)) && info && info->arraySize == 2 &&
         info->faceCount == 1 && info->mipCount == 1 && info->width >= 512 && info->height >= 512 &&
         (info->usageFlags & XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT) &&
         !(info->createFlags & XR_SWAPCHAIN_CREATE_STATIC_IMAGE_BIT);
-    bool existing = false;
-    if (info) for (auto node = static_cast<const XrBaseInStructure*>(info->next); node; node = node->next)
-        if (node->type == XR_TYPE_SWAPCHAIN_CREATE_INFO_FOVEATION_FB) existing = true;
     XrSwapchainCreateInfoFoveationFB foveation{XR_TYPE_SWAPCHAIN_CREATE_INFO_FOVEATION_FB,
         info ? const_cast<void*>(info->next) : nullptr, XR_SWAPCHAIN_CREATE_FOVEATION_SCALED_BIN_BIT_FB};
     XrSwapchainCreateInfo copy{};
@@ -90,15 +99,17 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrCreateSwapchain(XrSession session, c
     }
     if (eyeFoveation() && info) LOG("Swapchain eye candidate=%d GLES=%d array=%u size=%ux%u foveationChain=%d result=%d",
         direct, policy.gles, info->arraySize, info->width, info->height, existing, result);
+    if (policy.eye && policy.vulkan && info)
+        LOG("Vulkan eye backend: densityMap=%d eligible=%d; quality controlled by runtime FB profile", densityMap, direct);
     if (XR_SUCCEEDED(result) && swapchain) {
         XrFoveationProfileFB profile = XR_NULL_HANDLE;
         if (direct) {
             XrFoveationEyeTrackedProfileCreateInfoMETA eye{XR_TYPE_FOVEATION_EYE_TRACKED_PROFILE_CREATE_INFO_META};
             XrFoveationLevelProfileCreateInfoFB level{XR_TYPE_FOVEATION_LEVEL_PROFILE_CREATE_INFO_FB,
-                &eye, XR_FOVEATION_LEVEL_MEDIUM_FB, 0, XR_FOVEATION_DYNAMIC_DISABLED_FB};
+                &eye, policy.vulkan ? XR_FOVEATION_LEVEL_HIGH_FB : XR_FOVEATION_LEVEL_MEDIUM_FB, 0, XR_FOVEATION_DYNAMIC_DISABLED_FB};
             XrFoveationProfileCreateInfoFB create{XR_TYPE_FOVEATION_PROFILE_CREATE_INFO_FB, &level};
             auto created = policy.createFoveation(session, &create, &profile);
-            LOG("Direct eye profile level=2 result=%d", created);
+            LOG("Direct eye profile level=%d result=%d", level.level, created);
             if (XR_SUCCEEDED(created)) {
                 XrSwapchainStateFoveationFB state{XR_TYPE_SWAPCHAIN_STATE_FOVEATION_FB, nullptr, 0, profile};
                 auto applied = policy.updateSwapchain(*swapchain, reinterpret_cast<const XrSwapchainStateBaseHeaderFB*>(&state));
@@ -106,9 +117,20 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrCreateSwapchain(XrSession session, c
                 if (XR_FAILED(applied)) { policy.destroyFoveation(profile); profile = XR_NULL_HANDLE; }
             } else profile = XR_NULL_HANDLE;
         }
+        XrFoveationProfileFB alternate=XR_NULL_HANDLE;
+        if(profile && policy.vulkan && runtimeEyeFoveation()) {
+            XrFoveationEyeTrackedProfileCreateInfoMETA eye{XR_TYPE_FOVEATION_EYE_TRACKED_PROFILE_CREATE_INFO_META};
+            XrFoveationLevelProfileCreateInfoFB level{XR_TYPE_FOVEATION_LEVEL_PROFILE_CREATE_INFO_FB,&eye,XR_FOVEATION_LEVEL_MEDIUM_FB,0,XR_FOVEATION_DYNAMIC_DISABLED_FB};
+            XrFoveationProfileCreateInfoFB ci{XR_TYPE_FOVEATION_PROFILE_CREATE_INFO_FB,&level};
+            auto rc=policy.createFoveation(session,&ci,&alternate);
+            if(XR_FAILED(rc)) alternate=XR_NULL_HANDLE;
+            LOG("Vulkan gaze refresh profile result=%d",rc);
+        }
         std::lock_guard<std::mutex> lock(stateMutex);
         eyeSwapchains[*swapchain] = {session, profile, profile != XR_NULL_HANDLE};
+        eyeSwapchains[*swapchain].alternate=alternate;
         if (profile) eyeProfiles[profile] = {session, true, true};
+        if (alternate) eyeProfiles[alternate] = {session, true, true};
     }
     if (result == XR_SUCCESS && swapchain) qcomChainCreated(session, info, *swapchain);
     return result;
@@ -147,8 +169,10 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrDestroySwapchain(XrSwapchain swapcha
         auto it = eyeSwapchains.find(swapchain);
         if (it != eyeSwapchains.end()) {
             auto profile = it->second.profile;
+            auto alternate = it->second.alternate;
             eyeSwapchains.erase(it);
             collectEyeProfile(profile);
+            collectEyeProfile(alternate);
         }
     }
     return result;
@@ -180,9 +204,38 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrWaitFrame(XrSession session, const X
     if (active && !(runtimeEyeFoveation() && current.policy.gles)) {
         XrFoveationEyeTrackedStateMETA gaze{XR_TYPE_FOVEATION_EYE_TRACKED_STATE_META};
         auto status = current.policy.eyeState(session, &gaze);
+        if(current.policy.vulkan) rememberVulkanGaze(session,status,gaze);
         if ((current.eyeFrames++ % 450) == 0)
-            LOG("Eye foveation frame: update=%d state=%d valid=%d", update, status,
-                XR_SUCCEEDED(status) && (gaze.flags & XR_FOVEATION_EYE_TRACKED_STATE_VALID_BIT_META) != 0);
+            LOG("Eye foveation frame: update=%d state=%d valid=%d centerL=(%.4f,%.4f) centerR=(%.4f,%.4f) Vulkan=%d", update, status,
+                XR_SUCCEEDED(status) && (gaze.flags & XR_FOVEATION_EYE_TRACKED_STATE_VALID_BIT_META) != 0,
+                gaze.foveationCenter[0].x, gaze.foveationCenter[0].y,
+                gaze.foveationCenter[1].x, gaze.foveationCenter[1].y, current.policy.vulkan);
     }
     return result;
+}
+
+static void eyeAcquire(XrSwapchain chain,uint32_t index) {
+    std::lock_guard<std::mutex> lock(stateMutex);
+    auto it=eyeSwapchains.find(chain);
+    if(it!=eyeSwapchains.end() && it->second.alternate) it->second.acquired.push_back(index);
+}
+static void eyePrepareWait(XrSwapchain chain) {
+    std::lock_guard<std::mutex> lock(stateMutex);
+    auto it=eyeSwapchains.find(chain);
+    if(it==eyeSwapchains.end() || !it->second.alternate || it->second.acquired.empty()) return;
+    auto& c=it->second;
+    auto session=sessions.find(c.session);
+    if(session==sessions.end() || !session->second.policy.eye) return;
+    // Native input-equivalence cache is per image. Change its level key before
+    // the normal image wait/update, never map an image while the GPU owns it.
+    auto index=c.acquired.front();
+    bool next=!c.imageAlternate[index];
+    XrSwapchainStateFoveationFB state{XR_TYPE_SWAPCHAIN_STATE_FOVEATION_FB,nullptr,0,next?c.alternate:c.profile};
+    auto rc=session->second.policy.updateSwapchain(chain,reinterpret_cast<const XrSwapchainStateBaseHeaderFB*>(&state));
+    if(XR_SUCCEEDED(rc)) c.imageAlternate[index]=next;
+}
+static void eyeRelease(XrSwapchain chain) {
+    std::lock_guard<std::mutex> lock(stateMutex);
+    auto it=eyeSwapchains.find(chain);
+    if(it!=eyeSwapchains.end() && !it->second.acquired.empty()) it->second.acquired.pop_front();
 }

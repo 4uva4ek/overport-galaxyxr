@@ -93,7 +93,7 @@ int main(){
     XrCompositionLayerProjection layer{XR_TYPE_COMPOSITION_LAYER_PROJECTION};layer.viewCount=2;layer.views=views;
     const XrCompositionLayerBaseHeader* layers[]={reinterpret_cast<const XrCompositionLayerBaseHeader*>(&layer)};
     XrFrameEndInfo end{XR_TYPE_FRAME_END_INFO};end.layerCount=1;end.layers=layers;xrEndFrame(session,&end);
-    xrWaitSwapchainImage(chain,nullptr);assert(writes==2 && enabled==3 && densityValue==.5f && bound==99);
+    xrWaitSwapchainImage(chain,nullptr);assert(writes==2 && enabled==3 && densityValue==.35f && bound==99);
     assert(std::abs(focalX[0])<1e-5f && std::abs(focalY[1])<1e-5f);
     gazeOrientation={0,-std::sin(.15f),0,std::cos(.15f)};xrWaitSwapchainImage(chain,nullptr);assert(focalX[0]>.25f && focalX[1]>.25f);
     testConfig="foveation=qcom-debug\n";tracking=false;

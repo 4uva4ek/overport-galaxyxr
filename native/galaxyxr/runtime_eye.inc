@@ -1,6 +1,7 @@
 // App-local, version-pinned runtime backend. No system writes or global properties.
 #if defined(__ANDROID__) || defined(GXR_RUNTIME_EYE_TEST)
 #include "runtime_eye_sha256.h"
+#include "vulkan_density.h"
 #include <fstream>
 #include <sstream>
 #include <unistd.h>
@@ -15,13 +16,74 @@ static std::mutex tableMutex;
 static std::unordered_map<void*,XrSession> managerSessions;
 using CalculateGL = int(*)(void*, const void*, const void*, const void*, const void*, float*);
 static CalculateGL originalGL = nullptr;
+using CalculateFDM = int(*)(void*, const void*, uint32_t, const void*, const void*, uint32_t, uint32_t, uint8_t*);
+static CalculateFDM originalFDM = nullptr;
+static uintptr_t vulkanTable[25]{};
+struct VulkanGaze { XrVector2f center[2]{}; bool valid=false; std::chrono::steady_clock::time_point sampled{}; };
+static std::unordered_map<XrSession,VulkanGaze> vulkanGaze;
+static int eyeFDM(void* self,const void* frame,uint32_t views,const void* viewInfo,const void* extra,uint32_t width,uint32_t height,uint8_t* output) {
+    int result=originalFDM(self,frame,views,viewInfo,extra,width,height,output);
+    auto stats=[&](unsigned& lo,unsigned& hi,unsigned& sharp) {
+        lo=255; hi=sharp=0;
+        if(result!=0 || !output || width>512 || height>512) return;
+        for(size_t i=0;i<size_t(width)*height*2;++i) {
+            lo=std::min(lo,unsigned(output[i])); hi=std::max(hi,unsigned(output[i]));
+            sharp+=output[i]>=250;
+        }
+    };
+    unsigned beforeLo=0,beforeHi=0,beforeSharp=0;
+    stats(beforeLo,beforeHi,beforeSharp);
+    // Runtime calls this once per array layer. Do not warp combined multi-view maps.
+    bool changed=false;
+    VulkanGaze gaze; uint32_t eye=2;
+    if(views==1 && viewInfo) std::memcpy(&eye,viewInfo,sizeof(eye));
+    { std::lock_guard<std::mutex> lock(tableMutex); auto owner=managerSessions.find(self);
+      if(owner!=managerSessions.end()) { auto it=vulkanGaze.find(owner->second); if(it!=vulkanGaze.end()) gaze=it->second; } }
+    bool valid=eye<2 && gaze.valid && std::chrono::steady_clock::now()-gaze.sampled<std::chrono::milliseconds(100);
+    // Convert the pinned runtime gaze Y to the up-positive CPU map convention.
+    if(result==0 && views==1 && eye<2)
+        changed=gxr_density::gazeMap(output,width,height,gaze.center[eye].x,-gaze.center[eye].y,valid,
+            qcomSetting("qcomArea",.15f,0.f,2.f),qcomSetting("qcomGain",24.f,0.f,32.f),qcomSetting("qcomDensity",.35f,.125f,1.f));
+    if(result==0 && runtimeEyeDiagnostic() && output && width<=512 && height<=512) {
+        if(runtimeEyeFixed()) {
+            int phase=int(std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now()-runtimeDiagnosticStarted).count()/8)%4;
+            const float centers[4][2]={{-.5f,0},{.5f,0},{0,.5f},{0,-.5f}};
+            for(uint32_t row=0;row<height;++row) for(uint32_t col=0;col<width;++col) {
+                float x=2.f*(col+.5f)/width-1, y=1-2.f*(row+.5f)/height;
+                uint8_t value=(std::abs(x-centers[phase][0])<.2f && std::abs(y-centers[phase][1])<.2f)?255:32;
+                output[(size_t(row)*width+col)*2]=output[(size_t(row)*width+col)*2+1]=value;
+            }
+            static int last=-1;
+            if(__atomic_exchange_n(&last,phase,__ATOMIC_RELAXED)!=phase)
+                LOG("Vulkan FDM spatial diagnostic: phase=%d LEFT RIGHT UP DOWN, square20percent",phase);
+        } else {
+        // Diagnostic: confirmed spatial map driven by live per-eye gaze.
+        for(uint32_t row=0;row<height;++row) for(uint32_t col=0;col<width;++col) {
+            float x=2.f*(col+.5f)/width-1, y=1-2.f*(row+.5f)/height;
+            uint8_t value=(!valid || (std::abs(x-gaze.center[eye].x)<.1f &&
+                std::abs(y+gaze.center[eye].y)<.1f))?255:32;
+            output[(size_t(row)*width+col)*2]=output[(size_t(row)*width+col)*2+1]=value;
+        }
+        }
+    }
+    static unsigned count=0;
+    unsigned call=__atomic_fetch_add(&count,1u,__ATOMIC_RELAXED);
+    if(call<32 || call%900==0) {
+        unsigned lo=0,hi=0,sharp=0; stats(lo,hi,sharp);
+        LOG("Vulkan density controls: call=%u result=%d views=%u map=%ux%u changed=%d area=%.3f gain=%.3f density=%.3f",call,result,views,width,height,changed,
+            qcomSetting("qcomArea",.15f,0.f,2.f),qcomSetting("qcomGain",24.f,0.f,32.f),qcomSetting("qcomDensity",.35f,.125f,1.f));
+        LOG("Vulkan density bytes: range=%u..%u -> %u..%u sharpChannels=%u -> %u",beforeLo,beforeHi,lo,hi,beforeSharp,sharp);
+        LOG("Vulkan density gaze: eye=%u valid=%d center=(%.4f,%.4f)",eye,valid,eye<2?gaze.center[eye].x:0,eye<2?gaze.center[eye].y:0);
+    }
+    return result;
+}
 static void applyFocal(bool valid,float x,float y,float* output) {
     if(valid) {
         output[0]=x; output[1]=y;
         // Share the patch-time gain/area controls with the final GLES bridge.
         // The acquired-image path also applies these values to every focal slot.
-        output[2]=output[3]=qcomSetting("qcomGain",28.f,0.f,32.f);
-        output[4]=qcomSetting("qcomArea",.5f,0.f,2.f);
+        output[2]=output[3]=qcomSetting("qcomGain",24.f,0.f,32.f);
+        output[4]=qcomSetting("qcomArea",.15f,0.f,2.f);
     }
     else { output[0]=output[1]=output[2]=output[3]=0; output[4]=1; }
 }
@@ -160,19 +222,62 @@ static int enable(XrSession session) {
     }
     return result;
 }
+static int enableVulkan(XrSession session) {
+    const std::string runtime="/system/lib64/libopenxr_android.so", model="/system/lib64/libfoveation_manager.so";
+    auto m=maps(); auto mb=base(m,model);
+    static const bool verified=hash(runtime,"a7dabaa1030cc7979efe987f212488c61b61e8afb9aa3add59f7ae4fbeff4c92") &&
+        hash(model,"90cab49ed1d737fd7cf234cc1d5c8af8f6ab107f2543d5543bc186aef8191255");
+    if(!verified || !mb || !base(m,runtime)) { LOG("Vulkan density controls refused: runtime identity"); return -1; }
+    auto h=handler(m,reinterpret_cast<uintptr_t>(session));
+    uintptr_t manager=0,table=0,calculate=0;
+    if(!h || !read(m,h+0x200,manager) || !read(m,manager,table)) return -1;
+    std::lock_guard<std::mutex> lock(tableMutex);
+    if(table==reinterpret_cast<uintptr_t>(vulkanTable+2)) return 0;
+    // getFoveationFDM calls slot+0x58 with frame, view count/array, optional
+    // extra, width, height and a contiguous width*height R8G8 output buffer.
+    if(table!=mb+0x33018 || !read(m,table+0x58,calculate) || calculate!=mb+0x14860 ||
+       !range(m,table-16,sizeof(vulkanTable))) { LOG("Vulkan density controls refused: pinned FDM ABI"); return -1; }
+    auto code=range(m,calculate,4);
+    if(!code || !code->execute || code->write || code->path!=model) return -1;
+    if(!originalFDM) {
+        for(size_t i=0;i<25;++i) if(!read(m,table-16+i*8,vulkanTable[i])) return -1;
+        originalFDM=reinterpret_cast<CalculateFDM>(calculate);
+        vulkanTable[2+11]=reinterpret_cast<uintptr_t>(&eyeFDM);
+    }
+    __atomic_store_n(reinterpret_cast<uintptr_t*>(manager),reinterpret_cast<uintptr_t>(vulkanTable+2),__ATOMIC_RELEASE);
+    managerSessions[reinterpret_cast<void*>(manager)]=session;
+    LOG("Vulkan density controls installed: app-local FDM map; runtime gaze offsets preserved");
+    return 0;
+}
 }
 #endif
+static void rememberVulkanGaze(XrSession session,XrResult result,const XrFoveationEyeTrackedStateMETA& gaze) {
+#if defined(__ANDROID__) || defined(GXR_RUNTIME_EYE_TEST)
+    runtime_eye::VulkanGaze value;
+    value.valid=XR_SUCCEEDED(result) && (gaze.flags & XR_FOVEATION_EYE_TRACKED_STATE_VALID_BIT_META);
+    for(unsigned eye=0;eye<2;++eye) { value.center[eye]=gaze.foveationCenter[eye];
+        value.valid=value.valid && std::isfinite(value.center[eye].x) && std::isfinite(value.center[eye].y) &&
+            std::abs(value.center[eye].x)<=1 && std::abs(value.center[eye].y)<=1; }
+    value.sampled=std::chrono::steady_clock::now();
+    std::lock_guard<std::mutex> lock(runtime_eye::tableMutex); runtime_eye::vulkanGaze[session]=value;
+#else
+    (void)session; (void)result; (void)gaze;
+#endif
+}
 static void enableRuntimeEye(XrSession session) {
     if(!runtimeEyeFoveation()) return;
+    bool vulkan=false;
     {
         std::lock_guard<std::mutex> lock(stateMutex);
         auto it=sessions.find(session);
-        if(it==sessions.end() || !it->second.policy.eye || !it->second.policy.gles || it->second.runtimeEyeAttempted) return;
+        if(it==sessions.end() || !it->second.policy.eye || (!it->second.policy.gles && !it->second.policy.vulkan) || it->second.runtimeEyeAttempted) return;
+        vulkan=it->second.policy.vulkan;
         it->second.runtimeEyeAttempted=true;
     }
 #if defined(__ANDROID__) || defined(GXR_RUNTIME_EYE_TEST)
-    runtime_eye::enable(session);
+    if(vulkan) runtime_eye::enableVulkan(session); else runtime_eye::enable(session);
 #else
     (void)session;
+    (void)vulkan;
 #endif
 }

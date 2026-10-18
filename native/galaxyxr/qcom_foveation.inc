@@ -178,9 +178,9 @@ static void qcomApply(QcomChain& c) { // qcomMutex held; successful wait, before
         bool fresh=c.mapped && s.running && s.time>0 && std::chrono::steady_clock::now()-s.sampled<std::chrono::milliseconds(100);
         bool diagnostic=runtimeEyeDiagnostic();
         bool coarse=fresh && (diagnostic?runtimeDiagnosticCoarse():s.focalValid);
-        float gain=diagnostic?runtimeDiagnosticGain():qcomSetting("qcomGain",28.f,0.f,32.f);
-        float area=diagnostic?0.f:qcomSetting("qcomArea",.5f,0.f,2.f);
-        float requestedFloor=diagnostic?.125f:qcomSetting("qcomDensity",.5f,.125f,1.f);
+        float gain=diagnostic?runtimeDiagnosticGain():qcomSetting("qcomGain",24.f,0.f,32.f);
+        float area=diagnostic?0.f:qcomSetting("qcomArea",.15f,0.f,2.f);
+        float requestedFloor=diagnostic?.125f:qcomSetting("qcomDensity",.35f,.125f,1.f);
         bool changed=c.diagnosticLast!=int(coarse);
         if(report || changed) LOG("Runtime-eye GPU before texture=%u enabled=%d available=%d points=%d minDensity=%.3f error=0x%x mapped=%d",texture,enabled,available,focalCount,floor,error?error:queryError,c.mapped);
         if(error==GL_NO_ERROR && queryError==GL_NO_ERROR && getFloat && (available&3)==3 && focalCount>0 && focalCount<=16 && (fresh || (enabled&1))) {
@@ -236,9 +236,9 @@ static void qcomApply(QcomChain& c) { // qcomMutex held; successful wait, before
     if(!(enabled&1)) glTexParameteri(GL_TEXTURE_2D_ARRAY,features,3);
     // Broad fovea; floor 0.5 to avoid an aggressive first hardware test. Full density on any invalidity.
     bool reduced=valid && (!diagnostic || phase==1);
-    float floor=diagnostic?.125f:qcomSetting("qcomDensity",.5f,.125f,1.f);
-    float gain=diagnostic?8.f:qcomSetting("qcomGain",28.f,0.f,32.f);
-    float area=diagnostic?.05f:qcomSetting("qcomArea",.5f,0.f,2.f);
+    float floor=diagnostic?.125f:qcomSetting("qcomDensity",.35f,.125f,1.f);
+    float gain=diagnostic?8.f:qcomSetting("qcomGain",24.f,0.f,32.f);
+    float area=diagnostic?.05f:qcomSetting("qcomArea",.15f,0.f,2.f);
     glTexParameterf(GL_TEXTURE_2D_ARRAY,density,reduced?floor:1.f);
     for(GLuint eye=0;eye<2;++eye) for(GLint point=0;point<focalCount;++point)
         set(texture,eye,point,valid?x[eye]:0.f,valid?y[eye]:0.f,reduced?gain:0.f,reduced?gain:0.f,area);
@@ -265,12 +265,14 @@ static void qcomChainDestroyed(XrSwapchain) {}
 extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrAcquireSwapchainImage(XrSwapchain chain,const XrSwapchainImageAcquireInfo* info,uint32_t* index) {
     auto fn=symbol<PFN_xrAcquireSwapchainImage>("xrAcquireSwapchainImage");
     auto result=fn?fn(chain,info,index):XR_ERROR_FUNCTION_UNSUPPORTED;
+    if(result==XR_SUCCESS && index) eyeAcquire(chain,*index);
 #if defined(__ANDROID__) || defined(GXR_QCOM_TEST)
     if(result==XR_SUCCESS && index) { std::lock_guard<std::mutex> lock(qcomMutex); auto it=qcomChains.find(chain); if(it!=qcomChains.end()) it->second.acquired.push_back(*index); }
 #endif
     return result;
 }
 extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrWaitSwapchainImage(XrSwapchain chain,const XrSwapchainImageWaitInfo* info) {
+    eyePrepareWait(chain);
     auto fn=symbol<PFN_xrWaitSwapchainImage>("xrWaitSwapchainImage");
     auto result=fn?fn(chain,info):XR_ERROR_FUNCTION_UNSUPPORTED;
 #if defined(__ANDROID__) || defined(GXR_QCOM_TEST)
@@ -281,6 +283,7 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrWaitSwapchainImage(XrSwapchain chain
 extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrReleaseSwapchainImage(XrSwapchain chain,const XrSwapchainImageReleaseInfo* info) {
     auto fn=symbol<PFN_xrReleaseSwapchainImage>("xrReleaseSwapchainImage");
     auto result=fn?fn(chain,info):XR_ERROR_FUNCTION_UNSUPPORTED;
+    if(result==XR_SUCCESS) eyeRelease(chain);
 #if defined(__ANDROID__) || defined(GXR_QCOM_TEST)
     if(result==XR_SUCCESS) { std::lock_guard<std::mutex> lock(qcomMutex); auto it=qcomChains.find(chain); if(it!=qcomChains.end() && !it->second.acquired.empty()) it->second.acquired.pop_front(); }
 #endif

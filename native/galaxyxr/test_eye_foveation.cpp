@@ -86,5 +86,43 @@ int main() {
     rejectEye = false; chainInfo.usageFlags = XR_SWAPCHAIN_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
     assert(xrCreateSwapchain(session, &chainInfo, &swapchain) == XR_SUCCESS && !eyeSwapchains.at(swapchain).forced);
     assert(xrDestroySwapchain(swapchain) == XR_SUCCESS);
+    // Vulkan: only adopt existing density maps. Never add an attachment contract
+    // to a game whose render passes were created without one.
+    sessions[session].policy.gles = false;
+    sessions[session].policy.vulkan = true;
+    chainInfo.usageFlags = XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT;
+    int profilesBefore = created;
+    assert(xrCreateSwapchain(session, &chainInfo, &swapchain) == XR_SUCCESS);
+    assert(!eyeSwapchains.at(swapchain).forced && created == profilesBefore);
+    assert(xrDestroySwapchain(swapchain) == XR_SUCCESS);
+    XrSwapchainCreateInfoFoveationFB density{XR_TYPE_SWAPCHAIN_CREATE_INFO_FOVEATION_FB, nullptr,
+        XR_SWAPCHAIN_CREATE_FOVEATION_FRAGMENT_DENSITY_MAP_BIT_FB};
+    chainInfo.next = &density;
+    rejectEye = false;
+    testConfig = "performance=max\nfoveation=runtime-eye\n";
+    assert(xrCreateSwapchain(session, &chainInfo, &swapchain) == XR_SUCCESS);
+    assert(chainInfo.next == &density && density.next == nullptr && eyeSwapchains.at(swapchain).forced);
+    assert(eyeSwapchains.at(swapchain).alternate);
+    eyeAcquire(swapchain,0);
+    eyePrepareWait(swapchain);
+    assert(eyeSwapchains.at(swapchain).imageAlternate.at(0));
+    eyeRelease(swapchain);
+    eyeAcquire(swapchain,0);
+    eyePrepareWait(swapchain);
+    assert(!eyeSwapchains.at(swapchain).imageAlternate.at(0));
+    eyeRelease(swapchain);
+    int queriesBefore = queried, updatesBefore = updated;
+    assert(xrWaitFrame(session, nullptr, nullptr) == XR_SUCCESS);
+    assert(queried == queriesBefore + 1 && updated == updatesBefore + 1);
+    assert(xrDestroySwapchain(swapchain) == XR_SUCCESS && eyeProfiles.empty());
+    density.flags = XR_SWAPCHAIN_CREATE_FOVEATION_SCALED_BIN_BIT_FB;
+    assert(xrCreateSwapchain(session, &chainInfo, &swapchain) == XR_SUCCESS && !eyeSwapchains.at(swapchain).forced);
+    assert(xrDestroySwapchain(swapchain) == XR_SUCCESS);
+    density.flags = XR_SWAPCHAIN_CREATE_FOVEATION_FRAGMENT_DENSITY_MAP_BIT_FB;
+    sessions[session].policy.eye = false;
+    profilesBefore = created;
+    assert(xrCreateSwapchain(session, &chainInfo, &swapchain) == XR_SUCCESS && !eyeSwapchains.at(swapchain).forced);
+    assert(created == profilesBefore);
+    assert(xrDestroySwapchain(swapchain) == XR_SUCCESS);
     puts("PASS: immutable chain, eye update, deferred release, permission fallback, off profile, cleanup");
 }

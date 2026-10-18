@@ -12,6 +12,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <deque>
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
@@ -61,6 +62,7 @@ struct Policy {
     PFN_xrGetFoveationEyeTrackedStateMETA eyeState = nullptr;
     bool eye = false;
     bool gles = false;
+    bool vulkan = false;
     bool qcom = false;
     PFN_xrPerfSettingsSetPerformanceLevelEXT perf = nullptr;
     PFN_xrEnumerateDisplayRefreshRatesFB rates = nullptr;
@@ -132,10 +134,16 @@ static Policy sessionPolicy(XrSession session) {
 
 extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrInitializeLoaderKHR(const XrLoaderInitInfoBaseHeaderKHR* info) {
     auto initialize = symbol<PFN_xrInitializeLoaderKHR>("xrInitializeLoaderKHR");
+    // Loader extensions need not be exported as ELF symbols. The dispatcher
+    // obtained this hook through GIPA, so use the same lookup for the backend.
+    if (!initialize) initialize = proc<PFN_xrInitializeLoaderKHR>(XR_NULL_HANDLE, "xrInitializeLoaderKHR");
     XrResult result = initialize ? initialize(info) : XR_ERROR_FUNCTION_UNSUPPORTED;
     if (XR_SUCCEEDED(result)) gxrFpsRememberLoaderInit(info);
     return result;
 }
+static void eyeAcquire(XrSwapchain,uint32_t);
+static void eyePrepareWait(XrSwapchain);
+static void eyeRelease(XrSwapchain);
 #include "qcom_foveation.inc"
 #include "runtime_eye.inc"
 
@@ -231,6 +239,7 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrCreateSession(XrInstance instance, c
         auto& policy = sessions[*session].policy;
         for (auto node = info ? static_cast<const XrBaseInStructure*>(info->next) : nullptr; node; node = node->next)
             if (node->type == XR_TYPE_GRAPHICS_BINDING_OPENGL_ES_ANDROID_KHR) policy.gles = true;
+            else if (node->type == XR_TYPE_GRAPHICS_BINDING_VULKAN_KHR) policy.vulkan = true;
         if (policy.eye) {
             XrSystemFoveationEyeTrackedPropertiesMETA eye{XR_TYPE_SYSTEM_FOVEATION_EYE_TRACKED_PROPERTIES_META};
             XrSystemProperties properties{XR_TYPE_SYSTEM_PROPERTIES, &eye};
