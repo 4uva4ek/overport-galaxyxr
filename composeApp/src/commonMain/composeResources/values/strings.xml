@@ -78,6 +78,7 @@
     <string name="patch_remove_vrapi">Remove VrApi library</string>
     <string name="foveation_title">Foveated rendering</string>
     <string name="foveation_app">Управляет игра</string>
+    <string name="foveation_app_quality_hint">В этом режиме качество задаёт игра. Значения ниже можно настроить заранее; они применяются в режиме «По взгляду».</string>
     <string name="foveation_gaze">Старый метод QCOM по взгляду</string>
     <string name="foveation_debug">Визуальный тест: область слева</string>
     <string name="foveation_debug_section">Дебаг</string>
