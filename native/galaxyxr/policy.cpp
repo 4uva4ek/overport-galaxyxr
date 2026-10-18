@@ -95,6 +95,15 @@ static Policy sessionPolicy(XrSession session) {
     return it == sessions.end() ? Policy{} : it->second.policy;
 }
 
+#include "fps_hud.inc"
+
+extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrInitializeLoaderKHR(const XrLoaderInitInfoBaseHeaderKHR* info) {
+    auto initialize = symbol<PFN_xrInitializeLoaderKHR>("xrInitializeLoaderKHR");
+    XrResult result = initialize ? initialize(info) : XR_ERROR_FUNCTION_UNSUPPORTED;
+    if (XR_SUCCEEDED(result)) gxrFpsRememberLoaderInit(info);
+    return result;
+}
+
 extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrCreateInstance(const XrInstanceCreateInfo* info, XrInstance* instance) {
     auto create = symbol<PFN_xrCreateInstance>("xrCreateInstance");
     if (!create) return XR_ERROR_INITIALIZATION_FAILED;
@@ -124,13 +133,23 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrCreateInstance(const XrInstanceCreat
     });
     auto namesWithoutEye = names;
     if (eye) for (auto name : eyeExtensions) enable(name);
+    auto namesWithoutHud = names;
+    if (gxrFpsHudRequested()) {
+        enable(GXR_SURFACE_EXTENSION);
+        enable(XR_FB_DISPLAY_REFRESH_RATE_EXTENSION_NAME);
+    }
     auto enabled = [&](const char* name) { return std::any_of(names.begin(), names.end(), [&](const char* p) { return !strcmp(p, name); }); };
-    bool perf = enabled(XR_EXT_PERFORMANCE_SETTINGS_EXTENSION_NAME);
-    bool refresh = enabled(XR_FB_DISPLAY_REFRESH_RATE_EXTENSION_NAME);
     auto copy = *info;
     copy.enabledExtensionCount = static_cast<uint32_t>(names.size());
     copy.enabledExtensionNames = names.data();
     XrResult result = create(&copy, instance);
+    if (XR_FAILED(result) && gxrFpsHudRequested() && names != namesWithoutHud) {
+        LOG("FPS HUD extension request refused=%d; retrying without optional HUD extensions", result);
+        names = namesWithoutHud;
+        copy.enabledExtensionCount = static_cast<uint32_t>(names.size());
+        copy.enabledExtensionNames = names.data();
+        result = create(&copy, instance);
+    }
     if (XR_FAILED(result) && eye && names != namesWithoutEye) {
         LOG("Eye foveation extension request refused=%d; retrying original extension set", result);
         names = namesWithoutEye;
@@ -140,6 +159,9 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrCreateInstance(const XrInstanceCreat
         result = create(&copy, instance);
     }
     if (XR_SUCCEEDED(result) && instance) {
+        gxrFpsRememberInstance(*instance, info, enabled(GXR_SURFACE_EXTENSION));
+        bool perf = enabled(XR_EXT_PERFORMANCE_SETTINGS_EXTENSION_NAME);
+        bool refresh = enabled(XR_FB_DISPLAY_REFRESH_RATE_EXTENSION_NAME);
         Policy policy;
         policy.eye = eye;
         if (enabled(XR_FB_FOVEATION_EXTENSION_NAME)) {
@@ -180,6 +202,14 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrCreateSession(XrInstance instance, c
             policy.eye = XR_SUCCEEDED(support) && eye.supportsFoveationEyeTracked && policy.eyeState && policy.createFoveation && policy.destroyFoveation && policy.updateSwapchain;
             LOG("Eye foveation system support=%d result=%d", policy.eye, support);
         }
+    }
+    if (XR_SUCCEEDED(result) && session && gxrFpsHudRequested()) {
+        uint32_t limit = 0;
+        XrSystemProperties properties{XR_TYPE_SYSTEM_PROPERTIES};
+        auto getProperties = proc<PFN_xrGetSystemProperties>(instance, "xrGetSystemProperties");
+        if (info && getProperties && XR_SUCCEEDED(getProperties(instance, info->systemId, &properties)))
+            limit = properties.graphicsProperties.maxLayerCount;
+        gxrFpsRememberSession(instance, *session, limit);
     }
     return result;
 }
@@ -236,9 +266,31 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrRequestDisplayRefreshRateFB(XrSessio
 #include "hand_tracking.inc"
 #include "haptics.inc"
 
+extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrPollEvent(XrInstance instance, XrEventDataBuffer* event) {
+    auto poll = symbol<PFN_xrPollEvent>("xrPollEvent");
+    XrResult result = poll ? poll(instance, event) : XR_ERROR_FUNCTION_UNSUPPORTED;
+    if (result == XR_SUCCESS && event && event->type == XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED) {
+        auto state = reinterpret_cast<const XrEventDataSessionStateChanged*>(event);
+        gxrFpsOnSessionState(state->session, state->state);
+    }
+    return result;
+}
+
+extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrEndFrame(XrSession session, const XrFrameEndInfo* info) {
+    return gxrFpsEndFrame(session, info, symbol<PFN_xrEndFrame>("xrEndFrame"));
+}
+
+extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrBeginFrame(XrSession session, const XrFrameBeginInfo* info) {
+    auto begin = symbol<PFN_xrBeginFrame>("xrBeginFrame");
+    XrResult result = begin ? begin(session, info) : XR_ERROR_FUNCTION_UNSUPPORTED;
+    if (XR_SUCCEEDED(result)) gxrFpsOnBeginFrame(session);
+    return result;
+}
+
 extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrDestroySession(XrSession session) {
     auto destroy = symbol<PFN_xrDestroySession>("xrDestroySession");
     if (!destroy) return XR_ERROR_FUNCTION_UNSUPPORTED;
+    gxrFpsForgetSession(session);
     haptics.forgetSession(session);
     XrResult result = destroy(session);
     if (XR_SUCCEEDED(result)) { std::lock_guard<std::mutex> lock(stateMutex); forgetEyeSession(session); sessions.erase(session); }
@@ -248,6 +300,7 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrDestroySession(XrSession session) {
 extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrDestroyInstance(XrInstance instance) {
     auto destroy = symbol<PFN_xrDestroyInstance>("xrDestroyInstance");
     if (!destroy) return XR_ERROR_FUNCTION_UNSUPPORTED;
+    gxrFpsForgetInstance(instance);
     {
         std::lock_guard<std::mutex> lock(stateMutex);
         for (const auto& entry : sessions)
@@ -272,8 +325,10 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrGetInstanceProcAddr(XrInstance insta
     if (XR_FAILED(result) || !name || !function || !*function) return result;
 #define HOOK(fn) if (!strcmp(name, #fn)) *function = reinterpret_cast<PFN_xrVoidFunction>(&fn)
     HOOK(xrGetInstanceProcAddr);
+    HOOK(xrInitializeLoaderKHR);
     HOOK(xrCreateInstance); HOOK(xrDestroyInstance);
     HOOK(xrCreateSession); HOOK(xrDestroySession); HOOK(xrBeginSession); HOOK(xrEndSession);
+    HOOK(xrPollEvent); HOOK(xrBeginFrame); HOOK(xrEndFrame);
     HOOK(xrApplyHapticFeedback); HOOK(xrStopHapticFeedback);
     HOOK(xrCreateAction); HOOK(xrDestroyAction); HOOK(xrDestroyActionSet);
     HOOK(xrPerfSettingsSetPerformanceLevelEXT); HOOK(xrRequestDisplayRefreshRateFB);

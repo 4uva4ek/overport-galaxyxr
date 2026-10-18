@@ -67,6 +67,53 @@ complete scheduler still needs a sustained-effects gameplay check.
 
 ## Build and validation
 
+### FPS diagnostics
+
+The optional `fps_hud=on` adapter configuration is emitted by `--fps-hud=on`
+and the graphical FPS-overlay switch. It is read at process start and defaults
+to off. The adapter negotiates Android surface swapchains only for this option;
+failed optional extension negotiation retries without the HUD while preserving
+the existing application/performance/eye-foveation extension set.
+
+The HUD appends one VIEW-space quad only to visible/renderable app projection
+frames and only within `maxLayerCount`. A producer worker paints its Android
+Surface at most twice per second without accessing the game's graphics context
+or queues. The worker copies immutable text snapshots; buffer locking and CPU
+painting run off the game's normal frame-submission path.
+Surface swapchains use the KHR-required zero format/sample/face/array/mip fields,
+and are never enumerated, acquired, waited, or released as ordinary swapchains.
+The worker is stopped and fully joined before `xrEndSession`, nonvisible event
+delivery, and resource destruction. It is never detached; a stalled vendor
+buffer call can therefore delay teardown. Resources are destroyed before their
+owning session/instance. Optional setup failure disables the HUD. A backend
+`xrEndFrame` error is returned unchanged, without retrying the frame, and
+disables the HUD for subsequent frames. That error may still cause a game that
+aborts on OpenXR errors to exit, so validate the opt-in HUD on the target runtime.
+
+`APP FPS` counts only successful original projection submissions using a
+monotonic clock and a one-second window. Zero-layer frames, failed submissions,
+and the diagnostic quad do not add frames. Pipelined wait results are queued and
+latched at the corresponding successful `xrBeginFrame`, including a begin that
+discards a previous frame. Visibility transitions and pauses reset the sample.
+`DISPLAY HZ` comes separately from `xrGetDisplayRefreshRateFB`; `--`
+means unavailable/warming up. Neither metric proves unique GPU-completed images
+or captures compositor reprojection. Sparse `OverportGXR` log messages report
+initialization failures and each completed submission-rate sample.
+
+Run the focused host tests with the same include/warning flags as below:
+
+```sh
+g++ -std=c++17 -O2 -Wall -Wextra -Werror -Wno-missing-field-initializers \
+  -Inative/galaxyxr/include native/galaxyxr/test_fps_metrics.cpp -o native/galaxyxr/build/test_fps_metrics
+native/galaxyxr/build/test_fps_metrics
+g++ -std=c++17 -O2 -Wall -Wextra -Werror -Wno-missing-field-initializers \
+  -Inative/galaxyxr/include native/galaxyxr/test_fps_hud.cpp -pthread -o native/galaxyxr/build/test_fps_hud
+native/galaxyxr/build/test_fps_hud
+g++ -std=c++17 -O2 -Wall -Wextra -Werror -Wno-missing-field-initializers \
+  -Inative/galaxyxr/include native/galaxyxr/test_fps_integration.cpp -ldl -pthread -o native/galaxyxr/build/test_fps_integration
+native/galaxyxr/build/test_fps_integration
+```
+
 Linux/WSL, Android NDK r29, Python 3, host C++17 compiler, Java 21:
 
 ```sh

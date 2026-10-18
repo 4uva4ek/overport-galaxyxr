@@ -74,6 +74,8 @@ object PatchApplicationCommand : CliCommand() {
         println("to the Meta runtime conventions that Quest hand rigs expect; runtime keeps the Galaxy XR frames.")
         println("--hand-bind=edited | rebuild: edited (default) uses the hand-tuned bind table built into the adapter;")
         println("rebuild derives the bind pose from the runtime data only.")
+        println("--fps-hud=on | off: optional in-headset app submission FPS and display Hz; default off.")
+        println("Requires Android surface swapchains; unsupported runtimes keep the game unchanged.")
         println("--dispatcher=open | overport: open (default) packages the open OpenXR dispatcher")
         println("(openxr-dispatcher-open ${moe.crx.overport.galaxyxr.OpenDispatcher.VERSION}) as libopenxr_loader.so;")
         println("overport keeps the closed Overport dispatcher with the hash-guarded swapchain abort fix.")
@@ -111,6 +113,7 @@ object PatchApplicationCommand : CliCommand() {
         var handMesh: String? = null,
         var handFrames: String? = null,
         var handBind: String? = null,
+        var fpsHud: String? = null,
         var dispatcher: String? = null,
     )
 
@@ -141,11 +144,31 @@ object PatchApplicationCommand : CliCommand() {
                 "--hand-mesh" -> parsed.handMesh = value
                 "--hand-frames" -> parsed.handFrames = value
                 "--hand-bind" -> parsed.handBind = value
+                "--fps-hud" -> parsed.fpsHud = value
                 "--dispatcher" -> parsed.dispatcher = value
             }
         }
 
         return parsed
+    }
+
+    private fun selectedPatches(parsed: ParsedArguments): Map<String, List<String>> {
+        val patches = (parsed.patches ?: GalaxyXrPatches.recommended(
+            parsed.dispatcher ?: GalaxyXrPatches.DISPATCHER_OPEN
+        )).toMutableMap()
+        parsed.textureSize?.let { patches[PATCH_TEXTURE_SIZE.name] = listOf(it) }
+        if (parsed.verboseRuntime) patches[PATCH_VERBOSE_RUNTIME.name] = emptyList()
+        val overrides = listOf(parsed.performance, parsed.foveation, parsed.hands, parsed.handMesh,
+            parsed.handFrames, parsed.handBind, parsed.fpsHud)
+        if (overrides.any { it != null }) {
+            val selected = patches[PATCH_GALAXYXR_PERFORMANCE.name].orEmpty()
+            val defaults = listOf("max", "app", "auto", "fix", "meta", "edited", "off")
+            patches[PATCH_GALAXYXR_PERFORMANCE.name] = defaults.mapIndexed { index, fallback ->
+                overrides[index] ?: selected.getOrNull(index)?.takeIf { it.isNotBlank() } ?: fallback
+            }
+        }
+        parsed.dispatcher?.let { GalaxyXrPatches.selectDispatcher(patches, it) }
+        return patches
     }
 
     override suspend fun execute(args: List<String>): Boolean {
@@ -180,6 +203,10 @@ object PatchApplicationCommand : CliCommand() {
             println("--hand-bind requires a value of edited or rebuild.")
             return false
         }
+        if (parsed.fpsHud != null && parsed.fpsHud !in listOf("on", "off")) {
+            println("--fps-hud requires a value of on or off.")
+            return false
+        }
         if (parsed.dispatcher != null && (parsed.dispatcher !in GalaxyXrPatches.DISPATCHERS)) {
             println("--dispatcher requires a value of open or overport.")
             return false
@@ -206,16 +233,7 @@ object PatchApplicationCommand : CliCommand() {
 
         val workspace = parsed.workspace?.let { File(it) } ?: defaultWorkspace()
 
-        val patches = (parsed.patches ?: GalaxyXrPatches.recommended(
-            parsed.dispatcher ?: GalaxyXrPatches.DISPATCHER_OPEN
-        )).toMutableMap()
-        parsed.textureSize?.let { patches[PATCH_TEXTURE_SIZE.name] = listOf(it) }
-        if (parsed.verboseRuntime) patches[PATCH_VERBOSE_RUNTIME.name] = emptyList()
-        if (parsed.performance != null || parsed.foveation != null || parsed.hands != null || parsed.handMesh != null || parsed.handFrames != null || parsed.handBind != null) {
-            patches[PATCH_GALAXYXR_PERFORMANCE.name] = listOf(parsed.performance ?: "max", parsed.foveation ?: "app", parsed.hands ?: "auto",
-                parsed.handMesh ?: "fix", parsed.handFrames ?: "meta", parsed.handBind ?: "edited")
-        }
-        parsed.dispatcher?.let { GalaxyXrPatches.selectDispatcher(patches, it) }
+        val patches = selectedPatches(parsed)
 
         val nameFormat = parsed.nameFormat ?: DEFAULT_FORMAT
 

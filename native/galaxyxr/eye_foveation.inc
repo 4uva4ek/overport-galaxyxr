@@ -154,6 +154,7 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrDestroySwapchain(XrSwapchain swapcha
 extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrWaitFrame(XrSession session, const XrFrameWaitInfo* info, XrFrameState* state) {
     auto fn = symbol<PFN_xrWaitFrame>("xrWaitFrame");
     auto result = fn ? fn(session, info, state) : XR_ERROR_FUNCTION_UNSUPPORTED;
+    if (XR_SUCCEEDED(result)) gxrFpsOnWaitFrame(session, state);
     if (XR_FAILED(result) || !eyeFoveation()) return result;
     std::lock_guard<std::mutex> lock(stateMutex);
     auto entry = sessions.find(session);

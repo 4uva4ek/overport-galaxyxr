@@ -41,6 +41,7 @@ fun ApplicationInfoContent(
     var textureSize by remember(applicationPackage) { mutableStateOf("3552x3840") }
     var maximumPerformance by remember(applicationPackage) { mutableStateOf(true) }
     var handTracking by remember(applicationPackage) { mutableStateOf(true) }
+    var fpsHud by remember(applicationPackage) { mutableStateOf(false) }
     var openDispatcher by remember(applicationPackage) { mutableStateOf(true) }
     var advanced by remember(applicationPackage) { mutableStateOf(false) }
     // These patches define the target and are configured through the controls below.
@@ -79,7 +80,8 @@ fun ApplicationInfoContent(
             LazyColumn {
                 item {
                     GalaxyXrOptions(textureSize, { textureSize = it }, maximumPerformance, { maximumPerformance = it },
-                        handTracking, { handTracking = it }, openDispatcher, { openDispatcher = it })
+                        handTracking, { handTracking = it }, openDispatcher, { openDispatcher = it },
+                        fpsHud, { fpsHud = it })
                     TextButton(onClick = { advanced = !advanced }, modifier = Modifier.padding(horizontal = 8.dp)) {
                         Text(stringResource(if (advanced) Res.string.hide_advanced else Res.string.show_advanced))
                     }
@@ -158,8 +160,9 @@ fun ApplicationInfoContent(
                     }
                     onConfirm(enabledPatches.toMutableMap().apply {
                         this[PATCH_TEXTURE_SIZE.name] = listOf(textureSize)
-                        // Arguments: performance, foveation (app: CLI-only experiment), hands.
-                        this[PATCH_GALAXYXR_PERFORMANCE.name] = listOf(if (maximumPerformance) "max" else "app", "app", if (handTracking) "auto" else "off")
+                        // Arguments: performance, foveation, hands, mesh, frames, bind pose, FPS HUD.
+                        this[PATCH_GALAXYXR_PERFORMANCE.name] = listOf(if (maximumPerformance) "max" else "app", "app", if (handTracking) "auto" else "off",
+                            "fix", "meta", "edited", if (fpsHud) "on" else "off")
                         GalaxyXrPatches.selectDispatcher(this, if (openDispatcher) GalaxyXrPatches.DISPATCHER_OPEN else GalaxyXrPatches.DISPATCHER_OVERPORT)
                     })
                 }

@@ -156,7 +156,10 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrStopHapticFeedback(XrSession session
 extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrEndSession(XrSession session) {
     haptics.forgetSession(session);
     auto fn = symbol<PFN_xrEndSession>("xrEndSession");
-    return fn ? fn(session) : XR_ERROR_FUNCTION_UNSUPPORTED;
+    // Android Surface writers must finish before the runtime ends the session.
+    gxrFpsStopSession(session);
+    auto result = fn ? fn(session) : XR_ERROR_FUNCTION_UNSUPPORTED;
+    return result;
 }
 #ifdef GXR_INPUT_DIAGNOSTICS
 static void logInputAction(const XrActionCreateInfo*, XrAction);
