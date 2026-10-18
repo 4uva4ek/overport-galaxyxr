@@ -8,7 +8,7 @@ static bool surfaceSupported = true, rejectSurface = false;
 static int creations = 0, initCalls = 0, beginCalls = 0;
 static const char* eyeNames[] = {XR_FB_SWAPCHAIN_UPDATE_STATE_EXTENSION_NAME,
     XR_FB_FOVEATION_EXTENSION_NAME, XR_FB_FOVEATION_CONFIGURATION_EXTENSION_NAME,
-    XR_META_FOVEATION_EYE_TRACKED_EXTENSION_NAME};
+    XR_META_FOVEATION_EYE_TRACKED_EXTENSION_NAME, "XR_ANDROID_eye_tracking"};
 static XrResult enumerate(const char*, uint32_t capacity, uint32_t* count, XrExtensionProperties* out) {
     std::vector<const char*> names(std::begin(eyeNames), std::end(eyeNames));
     names.push_back(XR_FB_DISPLAY_REFRESH_RATE_EXTENSION_NAME);
@@ -67,7 +67,7 @@ static void* testSymbol(const char* name) {
 #undef MOCK
 }
 int main() {
-    testConfig = "performance=app\nfoveation=eye\nfps_hud=on\n";
+    testConfig = "performance=app\nfoveation=runtime-eye\nfps_hud=on\n";
     struct AndroidInit { XrStructureType type; const void* next; void* vm; void* context; } android{
         XR_TYPE_LOADER_INIT_INFO_ANDROID_KHR, nullptr, reinterpret_cast<void*>(3), nullptr};
     assert(xrInitializeLoaderKHR(reinterpret_cast<XrLoaderInitInfoBaseHeaderKHR*>(&android)) == XR_SUCCESS);
@@ -99,7 +99,7 @@ int main() {
     assert(xrCreateInstance(&info, &instance) == XR_SUCCESS && creations == 1);
     assert(GxrFpsHud::instances.empty());
     assert(xrDestroyInstance(instance) == XR_SUCCESS);
-    testConfig = "performance=app\nfoveation=eye\nfps_hud=off\n";
+    testConfig = "performance=app\nfoveation=runtime-eye\nfps_hud=off\n";
     surfaceSupported = true; rejectSurface = false; creations = 0;
     assert(xrCreateInstance(&info, &instance) == XR_SUCCESS && creations == 1);
     assert(GxrFpsHud::instances.empty());

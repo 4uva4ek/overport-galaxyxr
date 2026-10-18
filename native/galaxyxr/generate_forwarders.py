@@ -8,6 +8,7 @@ core = header.split('// XR_VERSION_1_1')[0]
 custom = {'xrGetInstanceProcAddr', 'xrCreateInstance', 'xrDestroyInstance',
           'xrCreateSession', 'xrDestroySession', 'xrBeginSession',
           'xrCreateSwapchain', 'xrDestroySwapchain', 'xrWaitFrame',
+          'xrAcquireSwapchainImage', 'xrWaitSwapchainImage', 'xrReleaseSwapchainImage',
           'xrApplyHapticFeedback', 'xrStopHapticFeedback', 'xrEndSession',
           'xrCreateAction', 'xrDestroyAction', 'xrDestroyActionSet',
           'xrPollEvent', 'xrBeginFrame', 'xrEndFrame', 'xrInitializeLoaderKHR'}

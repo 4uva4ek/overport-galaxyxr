@@ -1,5 +1,6 @@
 package moe.crx.overport.patches
 
+import moe.crx.overport.galaxyxr.FoveationSettings
 import moe.crx.overport.galaxyxr.OpenDispatcher
 import moe.crx.overport.galaxyxr.PERMISSION_EYE_TRACKING_FINE
 import moe.crx.overport.galaxyxr.PERMISSION_HAND_TRACKING
@@ -40,12 +41,13 @@ val PATCH_GALAXYXR_DISPATCHER = Patch("patch_galaxyxr_dispatcher", isRecommended
     println("\nGalaxy XR: open OpenXR dispatcher ${OpenDispatcher.VERSION} (${OpenDispatcher.sha256(dispatcher)}) replaces the closed Overport dispatcher.")
 }
 
-/** Arguments: performance, foveation, hands, handmesh, handframes, handbind, fps HUD (on|off). */
+/** Arguments: performance, foveation, hands, handmesh, handframes, handbind, density, gain, area, fps HUD (on|off). */
 val PATCH_GALAXYXR_PERFORMANCE = Patch("patch_galaxyxr_performance", isRecommended = false) { args ->
     val mode = args.firstOrNull() ?: "max"
     require(mode == "max" || mode == "app") { "Performance mode must be max or app." }
     val foveation = args.getOrNull(1) ?: "app"
-    require(foveation in listOf("app", "eye")) { "Foveation must be app or eye." }
+    require(foveation in listOf("app", "eye", "qcom", "qcom-debug", "runtime-eye", "runtime-eye-debug", "runtime-eye-fixed")) { "Foveation must be app, eye, qcom, qcom-debug or runtime-eye." }
+    val quality = FoveationSettings.parse(args.getOrNull(6), args.getOrNull(7), args.getOrNull(8))
     val hands = args.getOrNull(2) ?: "auto"
     require(hands in listOf("auto", "on", "off")) { "Hands must be auto, on or off." }
     // The Galaxy XR runtime hand mesh skeleton (parents, radii, tip and metacarpal bind poses) is incomplete;
@@ -62,7 +64,7 @@ val PATCH_GALAXYXR_PERFORMANCE = Patch("patch_galaxyxr_performance", isRecommend
     // from the runtime data only.
     val handBind = args.getOrNull(5) ?: "edited"
     require(handBind in listOf("rebuild", "edited")) { "Hand bind must be rebuild or edited." }
-    val fpsHud = args.getOrNull(6) ?: "off"
+    val fpsHud = args.getOrNull(9) ?: "off"
     require(fpsHud in listOf("on", "off")) { "FPS HUD must be on or off." }
     // Android XR delivers hand joints only after the runtime HAND_TRACKING permission is granted.
     // auto requests it only for games that declare Quest hand tracking in their manifest.
@@ -81,13 +83,13 @@ val PATCH_GALAXYXR_PERFORMANCE = Patch("patch_galaxyxr_performance", isRecommend
             writeBytes(adapter)
             val handsValue = if (handTracking) "on" else "off"
             file.resolveSibling("liboverport.galaxyxr.config.so")
-                .writeText("performance=$mode\nfoveation=$foveation\nhands=$handsValue\nhandmesh=$handMesh\nhandframes=$handFrames\nhandbind=$handBind\nfps_hud=$fpsHud\n")
+                .writeText("performance=$mode\nfoveation=$foveation\nhands=$handsValue\nhandmesh=$handMesh\nhandframes=$handFrames\nhandbind=$handBind\nfps_hud=$fpsHud\n" + quality.config())
             found = true
         }
     }
     require(found) { "Galaxy XR performance defaults require the ARM64 generic loader." }
     val permissions = listOfNotNull(
-        PERMISSION_EYE_TRACKING_FINE.takeIf { foveation == "eye" },
+        PERMISSION_EYE_TRACKING_FINE.takeIf { foveation in listOf("eye", "qcom", "qcom-debug", "runtime-eye", "runtime-eye-debug", "runtime-eye-fixed") },
         PERMISSION_HAND_TRACKING.takeIf { handTracking },
     )
     if (permissions.isNotEmpty()) addPermissionLauncher(permissions)

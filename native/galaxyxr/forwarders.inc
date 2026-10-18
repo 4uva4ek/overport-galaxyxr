@@ -144,25 +144,6 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrEnumerateSwapchainImages(XrSwapchain
     return fn ? fn(swapchain, imageCapacityInput, imageCountOutput, images) : XR_ERROR_FUNCTION_UNSUPPORTED;
 }
 
-extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrAcquireSwapchainImage(XrSwapchain                                 swapchain,
-    const XrSwapchainImageAcquireInfo*          acquireInfo,
-    uint32_t*                                   index) {
-    auto fn = symbol<PFN_xrAcquireSwapchainImage>("xrAcquireSwapchainImage");
-    return fn ? fn(swapchain, acquireInfo, index) : XR_ERROR_FUNCTION_UNSUPPORTED;
-}
-
-extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrWaitSwapchainImage(XrSwapchain                                 swapchain,
-    const XrSwapchainImageWaitInfo*             waitInfo) {
-    auto fn = symbol<PFN_xrWaitSwapchainImage>("xrWaitSwapchainImage");
-    return fn ? fn(swapchain, waitInfo) : XR_ERROR_FUNCTION_UNSUPPORTED;
-}
-
-extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrReleaseSwapchainImage(XrSwapchain                                 swapchain,
-    const XrSwapchainImageReleaseInfo*          releaseInfo) {
-    auto fn = symbol<PFN_xrReleaseSwapchainImage>("xrReleaseSwapchainImage");
-    return fn ? fn(swapchain, releaseInfo) : XR_ERROR_FUNCTION_UNSUPPORTED;
-}
-
 extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrRequestExitSession(XrSession                                   session) {
     auto fn = symbol<PFN_xrRequestExitSession>("xrRequestExitSession");
     return fn ? fn(session) : XR_ERROR_FUNCTION_UNSUPPORTED;

@@ -154,6 +154,7 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrStopHapticFeedback(XrSession session
     return haptics.stop(session, info, symbol<PFN_xrStopHapticFeedback>("xrStopHapticFeedback"));
 }
 extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrEndSession(XrSession session) {
+    qcomRunning(session, false);
     haptics.forgetSession(session);
     auto fn = symbol<PFN_xrEndSession>("xrEndSession");
     // Android Surface writers must finish before the runtime ends the session.

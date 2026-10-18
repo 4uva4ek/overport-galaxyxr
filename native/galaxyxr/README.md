@@ -69,6 +69,18 @@ complete scheduler still needs a sustained-effects gameplay check.
 
 ### FPS diagnostics
 
+The HUD can be combined with `--foveation=runtime-eye` and the density/gain/area
+controls. Performance patch arguments retain quality at indices 6/7/8; the
+optional HUD argument is index 9 (off by default). The single `xrEndFrame`
+wrapper submits once, then records eye mapping from the original application
+layers. `xrWaitFrame` updates both the frame latch and the gaze sample.
+`test_qcom_foveation` exercises the combined public hooks with a mocked Surface:
+visible HUD, moving gaze, all focal slots, invalid-gaze full quality, one backend
+submission, FPS excluding the quad, and continued gaze after HUD rejection.
+`test_fps_integration` checks that HUD extension fallback retains Android gaze
+and META foveation extensions. These host checks do not establish device Surface
+support, visual quality, or performance overhead.
+
 The optional `fps_hud=on` adapter configuration is emitted by `--fps-hud=on`
 and the graphical FPS-overlay switch. It is read at process start and defaults
 to off. The adapter negotiates Android surface swapchains only for this option;

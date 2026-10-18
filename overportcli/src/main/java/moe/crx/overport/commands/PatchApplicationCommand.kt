@@ -66,7 +66,8 @@ object PatchApplicationCommand : CliCommand() {
         println("Omit to use the target default; native clears the override. Games may apply their own scale.")
         println("--performance=max | app: default max requests CPU/GPU BOOST and supported 90 Hz.")
         println("Use app to restore application-controlled performance and refresh rate.")
-        println("--foveation=eye | app: experimental eye tracking for application foveation profiles; default app.")
+        println("--foveation=runtime-eye | qcom-debug | qcom | eye | app: qcom-debug alternates full quality/fixed-left every 10s; qcom is experimental direct GLES gaze foveation; eye uses META profiles; default app.")
+        println("--foveation-density=0.5 (0.125..1), --foveation-gain=28 (0..32), --foveation-area=0.5 (0..2); applies to qcom and runtime-eye.")
         println("--hands=auto | on | off: request the Android XR hand tracking permission at launch.")
         println("Default auto requests it only when the game declares Quest hand tracking; on forces it, off never asks.")
         println("--hand-mesh=fix | runtime: fix (default) rebuilds the incomplete runtime hand skeleton for OVRPlugin.")
@@ -109,6 +110,9 @@ object PatchApplicationCommand : CliCommand() {
         var verboseRuntime: Boolean = false,
         var performance: String? = null,
         var foveation: String? = null,
+        var foveationDensity: String? = null,
+        var foveationGain: String? = null,
+        var foveationArea: String? = null,
         var hands: String? = null,
         var handMesh: String? = null,
         var handFrames: String? = null,
@@ -140,6 +144,9 @@ object PatchApplicationCommand : CliCommand() {
                 "--verbose-runtime" -> parsed.verboseRuntime = true
                 "--performance" -> parsed.performance = value
                 "--foveation" -> parsed.foveation = value
+                "--foveation-density" -> parsed.foveationDensity = value
+                "--foveation-gain" -> parsed.foveationGain = value
+                "--foveation-area" -> parsed.foveationArea = value
                 "--hands" -> parsed.hands = value
                 "--hand-mesh" -> parsed.handMesh = value
                 "--hand-frames" -> parsed.handFrames = value
@@ -159,10 +166,10 @@ object PatchApplicationCommand : CliCommand() {
         parsed.textureSize?.let { patches[PATCH_TEXTURE_SIZE.name] = listOf(it) }
         if (parsed.verboseRuntime) patches[PATCH_VERBOSE_RUNTIME.name] = emptyList()
         val overrides = listOf(parsed.performance, parsed.foveation, parsed.hands, parsed.handMesh,
-            parsed.handFrames, parsed.handBind, parsed.fpsHud)
+            parsed.handFrames, parsed.handBind, parsed.foveationDensity, parsed.foveationGain, parsed.foveationArea, parsed.fpsHud)
         if (overrides.any { it != null }) {
             val selected = patches[PATCH_GALAXYXR_PERFORMANCE.name].orEmpty()
-            val defaults = listOf("max", "app", "auto", "fix", "meta", "edited", "off")
+            val defaults = listOf("max", "app", "auto", "fix", "meta", "edited") + moe.crx.overport.galaxyxr.FoveationSettings().arguments() + "off"
             patches[PATCH_GALAXYXR_PERFORMANCE.name] = defaults.mapIndexed { index, fallback ->
                 overrides[index] ?: selected.getOrNull(index)?.takeIf { it.isNotBlank() } ?: fallback
             }
@@ -178,9 +185,12 @@ object PatchApplicationCommand : CliCommand() {
             println("Unsupported target '${parsed.target}'. This patcher supports Galaxy XR only.")
             return false
         }
+        try {
+            moe.crx.overport.galaxyxr.FoveationSettings.parse(parsed.foveationDensity, parsed.foveationGain, parsed.foveationArea)
+        } catch (e: Exception) { println(e.message); return false }
         val inputFile = parsed.inputFile?.let { File(it) } ?: return false
-        if (parsed.foveation != null && (parsed.foveation !in listOf("app", "eye"))) {
-            println("--foveation requires a value of eye or app.")
+        if (parsed.foveation != null && (parsed.foveation !in listOf("app", "eye", "qcom", "qcom-debug", "runtime-eye", "runtime-eye-debug", "runtime-eye-fixed"))) {
+            println("--foveation requires a value of eye, qcom, qcom-debug, runtime-eye or app.")
             return false
         }
         if (parsed.performance != null && (parsed.performance !in listOf("max", "app"))) {

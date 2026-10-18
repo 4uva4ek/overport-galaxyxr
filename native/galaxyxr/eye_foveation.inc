@@ -110,10 +110,12 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrCreateSwapchain(XrSession session, c
         eyeSwapchains[*swapchain] = {session, profile, profile != XR_NULL_HANDLE};
         if (profile) eyeProfiles[profile] = {session, true, true};
     }
+    if (result == XR_SUCCESS && swapchain) qcomChainCreated(session, info, *swapchain);
     return result;
 }
 
 extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrUpdateSwapchainFB(XrSwapchain swapchain, const XrSwapchainStateBaseHeaderFB* state) {
+    if (state && !state->next && state->type == XR_TYPE_SWAPCHAIN_STATE_FOVEATION_FB && qcomOwns(swapchain)) return XR_SUCCESS;
     std::lock_guard<std::mutex> lock(stateMutex);
     auto chain = eyeSwapchains.find(swapchain);
     if (chain == eyeSwapchains.end()) return XR_ERROR_HANDLE_INVALID;
@@ -140,6 +142,7 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrDestroySwapchain(XrSwapchain swapcha
     auto fn = symbol<PFN_xrDestroySwapchain>("xrDestroySwapchain");
     auto result = fn ? fn(swapchain) : XR_ERROR_FUNCTION_UNSUPPORTED;
     if (XR_SUCCEEDED(result)) {
+        qcomChainDestroyed(swapchain);
         std::lock_guard<std::mutex> lock(stateMutex);
         auto it = eyeSwapchains.find(swapchain);
         if (it != eyeSwapchains.end()) {
@@ -155,6 +158,7 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrWaitFrame(XrSession session, const X
     auto fn = symbol<PFN_xrWaitFrame>("xrWaitFrame");
     auto result = fn ? fn(session, info, state) : XR_ERROR_FUNCTION_UNSUPPORTED;
     if (XR_SUCCEEDED(result)) gxrFpsOnWaitFrame(session, state);
+    if (result == XR_SUCCESS) qcomFrame(session, state);
     if (XR_FAILED(result) || !eyeFoveation()) return result;
     std::lock_guard<std::mutex> lock(stateMutex);
     auto entry = sessions.find(session);
@@ -173,7 +177,7 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrWaitFrame(XrSession session, const X
             break;
         }
     }
-    if (active) {
+    if (active && !(runtimeEyeFoveation() && current.policy.gles)) {
         XrFoveationEyeTrackedStateMETA gaze{XR_TYPE_FOVEATION_EYE_TRACKED_STATE_META};
         auto status = current.policy.eyeState(session, &gaze);
         if ((current.eyeFrames++ % 450) == 0)
