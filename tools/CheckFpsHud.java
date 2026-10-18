@@ -26,20 +26,20 @@ public class CheckFpsHud {
         Map<String, List<String>> defaults = selection();
         equal(List.of(), defaults.get(PERFORMANCE)); // Patch's existing default remains off.
         Map<String, List<String>> enabled = selection("--fps-hud=on");
-        equal(List.of("max", "app", "auto", "fix", "meta", "edited", "0.5", "28.0", "0.5", "on"), enabled.get(PERFORMANCE));
+        equal(List.of("max", "app", "auto", "fix", "meta", "edited", "0.35", "24.0", "0.15", "on"), enabled.get(PERFORMANCE));
         equal(defaults.keySet(), enabled.keySet());
         equal(List.of("3552x3840"), enabled.get("patch_texture_size"));
-        equal(List.of("max", "app", "auto", "fix", "meta", "edited", "0.5", "28.0", "0.5", "off"),
+        equal(List.of("max", "app", "auto", "fix", "meta", "edited", "0.35", "24.0", "0.15", "off"),
             selection("--fps-hud=off").get(PERFORMANCE));
-        equal(List.of("app", "eye", "off", "runtime", "runtime", "rebuild", "0.5", "28.0", "0.5", "on"),
+        equal(List.of("app", "eye", "off", "runtime", "runtime", "rebuild", "0.35", "24.0", "0.15", "on"),
             selection("--patches=" + PERFORMANCE + "=app,eye,off,runtime,runtime,rebuild", "--fps-hud=on").get(PERFORMANCE));
-        equal(List.of("app", "app", "off", "fix", "meta", "edited", "0.5", "28.0", "0.5", "on"),
+        equal(List.of("app", "app", "off", "fix", "meta", "edited", "0.35", "24.0", "0.15", "on"),
             selection("--performance=app", "--hands=off", "--fps-hud=on").get(PERFORMANCE));
         equal(List.of("app", "eye", "off", "runtime", "runtime", "rebuild", "0.5", "28.0", "0.5", "on"),
             selection("--patches=" + PERFORMANCE + "=app,eye,off,runtime,runtime,rebuild,0.5,28.0,0.5,on", "--performance=app").get(PERFORMANCE));
         equal(List.of("app", "runtime-eye", "off", "fix", "meta", "edited", "0.25", "32", "1", "on"),
             selection("--patches=" + PERFORMANCE + "=app,runtime-eye,off,fix,meta,edited,0.25,32,1", "--fps-hud=on").get(PERFORMANCE));
-        equal(List.of("max", "runtime-eye", "auto", "fix", "meta", "edited", "0.5", "16", "0.5", "on"),
+        equal(List.of("max", "runtime-eye", "auto", "fix", "meta", "edited", "0.35", "16", "0.15", "on"),
             selection("--foveation=runtime-eye", "--foveation-gain=16", "--fps-hud=on").get(PERFORMANCE));
         System.out.println("FPS HUD CLI parsing and patch propagation checks passed.");
     }
