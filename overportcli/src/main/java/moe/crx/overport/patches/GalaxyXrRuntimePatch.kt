@@ -1,5 +1,6 @@
 package moe.crx.overport.patches
 
+import moe.crx.overport.galaxyxr.FoveationSettings
 import moe.crx.overport.galaxyxr.OpenDispatcher
 import moe.crx.overport.galaxyxr.PERMISSION_EYE_TRACKING_FINE
 import moe.crx.overport.galaxyxr.PERMISSION_HAND_TRACKING
@@ -45,7 +46,8 @@ val PATCH_GALAXYXR_PERFORMANCE = Patch("patch_galaxyxr_performance", isRecommend
     val mode = args.firstOrNull() ?: "max"
     require(mode == "max" || mode == "app") { "Performance mode must be max or app." }
     val foveation = args.getOrNull(1) ?: "app"
-    require(foveation in listOf("app", "eye")) { "Foveation must be app or eye." }
+    require(foveation in listOf("app", "eye", "qcom", "qcom-debug", "runtime-eye", "runtime-eye-debug", "runtime-eye-fixed")) { "Foveation must be app, eye, qcom, qcom-debug or runtime-eye." }
+    val quality = FoveationSettings.parse(args.getOrNull(6), args.getOrNull(7), args.getOrNull(8))
     val hands = args.getOrNull(2) ?: "auto"
     require(hands in listOf("auto", "on", "off")) { "Hands must be auto, on or off." }
     // The Galaxy XR runtime hand mesh skeleton (parents, radii, tip and metacarpal bind poses) is incomplete;
@@ -79,13 +81,13 @@ val PATCH_GALAXYXR_PERFORMANCE = Patch("patch_galaxyxr_performance", isRecommend
             writeBytes(adapter)
             val handsValue = if (handTracking) "on" else "off"
             file.resolveSibling("liboverport.galaxyxr.config.so")
-                .writeText("performance=$mode\nfoveation=$foveation\nhands=$handsValue\nhandmesh=$handMesh\nhandframes=$handFrames\nhandbind=$handBind\n")
+                .writeText("performance=$mode\nfoveation=$foveation\nhands=$handsValue\nhandmesh=$handMesh\nhandframes=$handFrames\nhandbind=$handBind\n" + quality.config())
             found = true
         }
     }
     require(found) { "Galaxy XR performance defaults require the ARM64 generic loader." }
     val permissions = listOfNotNull(
-        PERMISSION_EYE_TRACKING_FINE.takeIf { foveation == "eye" },
+        PERMISSION_EYE_TRACKING_FINE.takeIf { foveation in listOf("eye", "qcom", "qcom-debug", "runtime-eye", "runtime-eye-debug", "runtime-eye-fixed") },
         PERMISSION_HAND_TRACKING.takeIf { handTracking },
     )
     if (permissions.isNotEmpty()) addPermissionLauncher(permissions)

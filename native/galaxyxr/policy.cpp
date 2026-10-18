@@ -13,6 +13,9 @@
 #include <unordered_map>
 #include <vector>
 #include <cstdio>
+#include <cstdlib>
+#include <cmath>
+#include <chrono>
 
 #ifdef GXR_POLICY_TEST
 #include <cstdio>
@@ -58,6 +61,7 @@ struct Policy {
     PFN_xrGetFoveationEyeTrackedStateMETA eyeState = nullptr;
     bool eye = false;
     bool gles = false;
+    bool qcom = false;
     PFN_xrPerfSettingsSetPerformanceLevelEXT perf = nullptr;
     PFN_xrEnumerateDisplayRefreshRatesFB rates = nullptr;
     PFN_xrRequestDisplayRefreshRateFB request = nullptr;
@@ -65,7 +69,7 @@ struct Policy {
 };
 static std::mutex stateMutex;
 static std::unordered_map<XrInstance, Policy> instances;
-struct Session { XrInstance instance; Policy policy; uint32_t eyeFrames = 0; };
+struct Session { XrInstance instance; Policy policy; uint32_t eyeFrames = 0; bool runtimeEyeAttempted = false; };
 static std::unordered_map<XrSession, Session> sessions;
 
 static std::string config() {
@@ -79,7 +83,7 @@ static std::string config() {
         path.resize(path.find_last_of('/') + 1);
         FILE* file = fopen((path + "liboverport.galaxyxr.config.so").c_str(), "rb");
         if (!file) return std::string{};
-        char buffer[256]{};
+        char buffer[1024]{};
         size_t length = fread(buffer, 1, sizeof(buffer), file);
         fclose(file);
         return std::string(buffer, length);
@@ -88,12 +92,44 @@ static std::string config() {
 #endif
 }
 static bool maxPerformance() { static bool enabled = config().find("performance=max\n") != std::string::npos; return enabled; }
-static bool eyeFoveation() { static bool enabled = config().find("foveation=eye\n") != std::string::npos; return enabled; }
+static bool runtimeEyeFixed() { return config().find("foveation=runtime-eye-fixed\n") != std::string::npos; }
+static bool runtimeEyeDiagnostic() { return runtimeEyeFixed() || config().find("foveation=runtime-eye-debug\n") != std::string::npos; }
+static auto runtimeDiagnosticStarted=std::chrono::steady_clock::now();
+static int runtimeDiagnosticPhase() { return runtimeEyeFixed()?1:(std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now()-runtimeDiagnosticStarted).count()/10)%3; }
+static bool runtimeDiagnosticCoarse() { return runtimeDiagnosticPhase()!=0; }
+// Fixed-center stress test: shrink the ideal full-density radius 4x versus gain 8.
+static float runtimeDiagnosticGain() { return runtimeEyeFixed()?32.f:8.f; }
+static bool runtimeDiagnosticCenter(const XrFovf& fov,float& x,float& y) {
+    float l=std::tan(fov.angleLeft),r=std::tan(fov.angleRight),b=std::tan(fov.angleDown),t=std::tan(fov.angleUp);
+    if(!(r>l) || !(t>b)) return false;
+    float tangent=0;
+    if(runtimeEyeDiagnostic() && runtimeDiagnosticPhase()==2) {
+        float seconds=std::chrono::duration<float>(std::chrono::steady_clock::now()-runtimeDiagnosticStarted).count();
+        tangent=.25f*std::sin(seconds*1.25663706f);
+    }
+    x=(2*tangent-r-l)/(r-l); y=-(t+b)/(t-b);
+    return std::isfinite(x) && std::isfinite(y) && std::abs(x)<=1 && std::abs(y)<=1;
+}
+static bool runtimeEyeFoveation() { return runtimeEyeDiagnostic() || config().find("foveation=runtime-eye\n") != std::string::npos; }
+static bool eyeFoveation() { return runtimeEyeFoveation() || config().find("foveation=eye\n") != std::string::npos; }
+static float qcomSetting(const char* key, float fallback, float low, float high) {
+    std::string text="\n"+config(), token="\n"+std::string(key)+"=";
+    auto start=text.find(token); if(start==std::string::npos) return fallback;
+    start+=token.size(); auto end=text.find('\n',start);
+    std::string value=text.substr(start,end-start); char* tail=nullptr;
+    float number=std::strtof(value.c_str(),&tail);
+    return tail!=value.c_str() && *tail=='\0' && std::isfinite(number) && number>=low && number<=high ? number : fallback;
+}
+static bool qcomDiagnostic() { return config().find("foveation=qcom-debug\n") != std::string::npos; }
+static bool qcomFoveation() { return qcomDiagnostic() || config().find("foveation=qcom\n") != std::string::npos; }
 static Policy sessionPolicy(XrSession session) {
     std::lock_guard<std::mutex> lock(stateMutex);
     auto it = sessions.find(session);
     return it == sessions.end() ? Policy{} : it->second.policy;
 }
+
+#include "qcom_foveation.inc"
+#include "runtime_eye.inc"
 
 extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrCreateInstance(const XrInstanceCreateInfo* info, XrInstance* instance) {
     auto create = symbol<PFN_xrCreateInstance>("xrCreateInstance");
@@ -123,6 +159,7 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrCreateInstance(const XrInstanceCreat
         return std::any_of(available.begin(), available.end(), [&](const auto& p) { return !strcmp(p.extensionName, name); });
     });
     auto namesWithoutEye = names;
+    bool qcom = (qcomFoveation() || runtimeEyeFoveation()) && enable("XR_ANDROID_eye_tracking");
     if (eye) for (auto name : eyeExtensions) enable(name);
     auto enabled = [&](const char* name) { return std::any_of(names.begin(), names.end(), [&](const char* p) { return !strcmp(p, name); }); };
     bool perf = enabled(XR_EXT_PERFORMANCE_SETTINGS_EXTENSION_NAME);
@@ -131,17 +168,18 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrCreateInstance(const XrInstanceCreat
     copy.enabledExtensionCount = static_cast<uint32_t>(names.size());
     copy.enabledExtensionNames = names.data();
     XrResult result = create(&copy, instance);
-    if (XR_FAILED(result) && eye && names != namesWithoutEye) {
+    if (XR_FAILED(result) && (eye || qcom) && names != namesWithoutEye) {
         LOG("Eye foveation extension request refused=%d; retrying original extension set", result);
         names = namesWithoutEye;
         copy.enabledExtensionCount = static_cast<uint32_t>(names.size());
         copy.enabledExtensionNames = names.data();
-        eye = false;
+        eye = false; qcom = false;
         result = create(&copy, instance);
     }
     if (XR_SUCCEEDED(result) && instance) {
         Policy policy;
         policy.eye = eye;
+        policy.qcom = qcom;
         if (enabled(XR_FB_FOVEATION_EXTENSION_NAME)) {
             policy.createFoveation = proc<PFN_xrCreateFoveationProfileFB>(*instance, "xrCreateFoveationProfileFB");
             policy.destroyFoveation = proc<PFN_xrDestroyFoveationProfileFB>(*instance, "xrDestroyFoveationProfileFB");
@@ -181,6 +219,7 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrCreateSession(XrInstance instance, c
             LOG("Eye foveation system support=%d result=%d", policy.eye, support);
         }
     }
+    if (result == XR_SUCCESS && session) qcomSessionCreated(*session, info);
     return result;
 }
 
@@ -215,6 +254,7 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrBeginSession(XrSession session, cons
     auto begin = symbol<PFN_xrBeginSession>("xrBeginSession");
     if (!begin) return XR_ERROR_FUNCTION_UNSUPPORTED;
     XrResult result = begin(session, info);
+    if (result == XR_SUCCESS) { qcomRunning(session, true); enableRuntimeEye(session); }
     if (XR_SUCCEEDED(result) && maxPerformance()) applyDefaults(session);
     return result; // A refused performance/rate hint must never turn successful begin into failure.
 }
@@ -241,7 +281,7 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrDestroySession(XrSession session) {
     if (!destroy) return XR_ERROR_FUNCTION_UNSUPPORTED;
     haptics.forgetSession(session);
     XrResult result = destroy(session);
-    if (XR_SUCCEEDED(result)) { std::lock_guard<std::mutex> lock(stateMutex); forgetEyeSession(session); sessions.erase(session); }
+    if (XR_SUCCEEDED(result)) { std::lock_guard<std::mutex> lock(stateMutex); forgetEyeSession(session); qcomForget(session); sessions.erase(session); }
     return result;
 }
 
@@ -258,7 +298,7 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrDestroyInstance(XrInstance instance)
         std::lock_guard<std::mutex> lock(stateMutex);
         instances.erase(instance);
         for (auto it = sessions.begin(); it != sessions.end();) {
-            if (it->second.instance == instance) { forgetEyeSession(it->first); it = sessions.erase(it); } else ++it;
+            if (it->second.instance == instance) { forgetEyeSession(it->first); qcomForget(it->first); it = sessions.erase(it); } else ++it;
         }
     }
     return result;
@@ -278,6 +318,7 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrGetInstanceProcAddr(XrInstance insta
     HOOK(xrCreateAction); HOOK(xrDestroyAction); HOOK(xrDestroyActionSet);
     HOOK(xrPerfSettingsSetPerformanceLevelEXT); HOOK(xrRequestDisplayRefreshRateFB);
     HOOK(xrCreateFoveationProfileFB); HOOK(xrDestroyFoveationProfileFB);
+    HOOK(xrAcquireSwapchainImage); HOOK(xrWaitSwapchainImage); HOOK(xrReleaseSwapchainImage); HOOK(xrEndFrame);
     HOOK(xrCreateSwapchain); HOOK(xrDestroySwapchain); HOOK(xrUpdateSwapchainFB); HOOK(xrWaitFrame);
 #ifdef GXR_INPUT_DIAGNOSTICS
     HOOK(xrSyncActions); HOOK(xrSuggestInteractionProfileBindings);

@@ -10,7 +10,7 @@ if [[ ${GXR_INPUT_DIAGNOSTICS:-0} == 1 ]]; then diagnostics=(-DGXR_INPUT_DIAGNOS
 if [[ ${GXR_HAND_DIAGNOSTICS:-0} == 1 ]]; then diagnostics+=(-DGXR_HAND_DIAGNOSTICS); fi
 "$toolchain/aarch64-linux-android29-clang++" -std=c++17 -O2 -Wall -Wextra \
     -Werror -Wno-missing-field-initializers -fvisibility-inlines-hidden \
-    -static-libstdc++ -shared -fPIC -Iinclude "${diagnostics[@]}" policy.cpp -ldl -llog \
+    -static-libstdc++ -shared -fPIC -Iinclude "${diagnostics[@]}" policy.cpp -ldl -llog -lEGL -lGLESv3 \
     -Wl,-z,max-page-size=16384 -Wl,-z,defs -Wl,-Bsymbolic \
     -Wl,--version-script=exports.map -Wl,-soname,libopenxr_loader_generic.so -o "$out/libopenxr_loader_generic.bin"
 "$toolchain/llvm-strip" --strip-unneeded "$out/libopenxr_loader_generic.bin"

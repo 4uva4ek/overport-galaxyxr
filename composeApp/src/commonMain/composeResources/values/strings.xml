@@ -76,4 +76,20 @@
     <string name="patch_disable_space_warp">Disable application space warp if used</string>
     <string name="patch_disable_controller_offset">Disable controller tracking offset</string>
     <string name="patch_remove_vrapi">Remove VrApi library</string>
+    <string name="foveation_title">Foveated rendering</string>
+    <string name="foveation_app">Game controlled</string>
+    <string name="foveation_gaze">Eye tracked (experimental)</string>
+    <string name="foveation_debug">Visual test: fixed left</string>
+    <string name="foveation_repatch">Settings apply when you patch and install the game. Starting values still need testing for quality and stability.</string>
+    <string name="foveation_soft">Soft</string>
+    <string name="foveation_start">Starting values</string>
+    <string name="foveation_density">Minimum peripheral density</string>
+    <string name="foveation_density_hint">Lower values allow coarser peripheral rendering. 1 preserves full density everywhere.</string>
+    <string name="foveation_gain">Quality falloff</string>
+    <string name="foveation_gain_hint">Higher values make quality drop faster away from your gaze.</string>
+    <string name="foveation_area">Clear region size</string>
+    <string name="foveation_area_hint">Higher values preserve a larger clear region. This is not an angle or a percentage.</string>
+    <string name="foveation_debug_hint">Alternates full quality and a fixed clear region on the left every 10 seconds. Uses fixed test values 0.125 / 8 / 0.05 and ignores eye movement.</string>
+    <string name="foveation_runtime_eye">Runtime eye tracking (experimental)</string>
+    <string name="foveation_runtime_eye_hint">Moves the sharp region using eye tracking on supported Galaxy XR firmware. Density, gain and area apply to all focal points in both eyes. Unsupported firmware keeps the existing static behavior.</string>
 </resources>
