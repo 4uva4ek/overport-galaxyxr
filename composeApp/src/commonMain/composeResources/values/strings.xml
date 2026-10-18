@@ -77,13 +77,13 @@
     <string name="patch_disable_controller_offset">Disable controller tracking offset</string>
     <string name="patch_remove_vrapi">Remove VrApi library</string>
     <string name="foveation_title">Foveated rendering</string>
-    <string name="foveation_app">Управляет игра</string>
-    <string name="foveation_app_quality_hint">В этом режиме качество задаёт игра. Значения ниже можно настроить заранее; они применяются в режиме «По взгляду».</string>
-    <string name="foveation_gaze">Старый метод QCOM по взгляду</string>
-    <string name="foveation_debug">Визуальный тест: область слева</string>
-    <string name="foveation_debug_section">Дебаг</string>
-    <string name="foveation_debug_hide">Скрыть дебаг</string>
-    <string name="foveation_debug_explanation">Экспериментальные режимы для диагностики. Чтобы выйти из теста, выберите обычный режим в списке выше.</string>
+    <string name="foveation_app">Game controlled</string>
+    <string name="foveation_app_quality_hint">The game controls quality in this mode. You can adjust the values below in advance; they apply in Eye tracked mode.</string>
+    <string name="foveation_gaze">Legacy QCOM eye tracking</string>
+    <string name="foveation_debug">Visual test: fixed left</string>
+    <string name="foveation_debug_section">Debug</string>
+    <string name="foveation_debug_hide">Hide debug</string>
+    <string name="foveation_debug_explanation">Experimental diagnostic modes. To leave a test, select a normal mode from the list above.</string>
     <string name="foveation_repatch">Settings apply when you patch and install the game. Starting values still need testing for quality and stability.</string>
     <string name="foveation_soft">Soft</string>
     <string name="foveation_start">Starting values</string>
@@ -94,6 +94,6 @@
     <string name="foveation_area">Clear region size</string>
     <string name="foveation_area_hint">Higher values preserve a larger clear region. This is not an angle or a percentage.</string>
     <string name="foveation_debug_hint">Alternates full quality and a fixed clear region on the left every 10 seconds. Uses fixed test values 0.125 / 8 / 0.05 and ignores eye movement.</string>
-    <string name="foveation_runtime_eye">По взгляду</string>
+    <string name="foveation_runtime_eye">Eye tracked</string>
     <string name="foveation_runtime_eye_hint">Moves the sharp region using eye tracking on supported Galaxy XR firmware. Density, gain and area apply to all focal points in both eyes. Unsupported firmware keeps the existing static behavior.</string>
 </resources>
