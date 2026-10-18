@@ -41,7 +41,7 @@ val PATCH_GALAXYXR_DISPATCHER = Patch("patch_galaxyxr_dispatcher", isRecommended
     println("\nGalaxy XR: open OpenXR dispatcher ${OpenDispatcher.VERSION} (${OpenDispatcher.sha256(dispatcher)}) replaces the closed Overport dispatcher.")
 }
 
-/** Arguments: performance (max|app), foveation (app|eye), hands (auto|on|off), handmesh (fix|runtime), handframes (meta|runtime), handbind (edited|rebuild). */
+/** Arguments: performance, foveation, hands, handmesh, handframes, handbind, density, gain, area, fps HUD (on|off). */
 val PATCH_GALAXYXR_PERFORMANCE = Patch("patch_galaxyxr_performance", isRecommended = false) { args ->
     val mode = args.firstOrNull() ?: "max"
     require(mode == "max" || mode == "app") { "Performance mode must be max or app." }
@@ -64,6 +64,8 @@ val PATCH_GALAXYXR_PERFORMANCE = Patch("patch_galaxyxr_performance", isRecommend
     // from the runtime data only.
     val handBind = args.getOrNull(5) ?: "edited"
     require(handBind in listOf("rebuild", "edited")) { "Hand bind must be rebuild or edited." }
+    val fpsHud = args.getOrNull(9) ?: "off"
+    require(fpsHud in listOf("on", "off")) { "FPS HUD must be on or off." }
     // Android XR delivers hand joints only after the runtime HAND_TRACKING permission is granted.
     // auto requests it only for games that declare Quest hand tracking in their manifest.
     val handTracking = hands == "on" || (hands == "auto" && declaresQuestHandTracking())
@@ -81,7 +83,7 @@ val PATCH_GALAXYXR_PERFORMANCE = Patch("patch_galaxyxr_performance", isRecommend
             writeBytes(adapter)
             val handsValue = if (handTracking) "on" else "off"
             file.resolveSibling("liboverport.galaxyxr.config.so")
-                .writeText("performance=$mode\nfoveation=$foveation\nhands=$handsValue\nhandmesh=$handMesh\nhandframes=$handFrames\nhandbind=$handBind\n" + quality.config())
+                .writeText("performance=$mode\nfoveation=$foveation\nhands=$handsValue\nhandmesh=$handMesh\nhandframes=$handFrames\nhandbind=$handBind\nfps_hud=$fpsHud\n" + quality.config())
             found = true
         }
     }
@@ -97,6 +99,7 @@ val PATCH_GALAXYXR_PERFORMANCE = Patch("patch_galaxyxr_performance", isRecommend
         suggestedGpuLevel = if (mode == "max") 4 else 0
     }
     println(if (mode == "max") "\nGalaxy XR: request CPU/GPU BOOST and supported 90 Hz for every XR session." else "\nGalaxy XR: application-controlled performance and refresh rate.")
+    println("Galaxy XR: app submission FPS HUD $fpsHud (separate from display Hz; requires Android surface swapchains).")
     println(if (handMesh == "fix") "Galaxy XR: hand skeleton rebuilt from the runtime hand mesh." else "Galaxy XR: runtime hand mesh skeleton kept as is (handmesh=runtime).")
     println(if (handBind == "edited") "Galaxy XR: hand bind pose replaced with the hand-tuned table (handbind=edited)." else "Galaxy XR: hand bind pose derived from the runtime data only (handbind=rebuild).")
     println(if (handFrames == "meta") "Galaxy XR: wrist and little-metacarpal joint frames re-rolled to the Meta conventions." else "Galaxy XR: runtime hand joint frames kept as is (handframes=runtime).")

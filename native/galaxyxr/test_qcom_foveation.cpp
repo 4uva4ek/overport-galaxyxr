@@ -37,11 +37,30 @@ static XrResult locate(XrSession,const XrViewLocateInfo*,XrViewState* state,uint
 static XrResult acquire(XrSwapchain,const XrSwapchainImageAcquireInfo*,uint32_t* index){*index=0;return XR_SUCCESS;}
 static XrResult wait(XrSwapchain,const XrSwapchainImageWaitInfo*){return waitResult;}
 static XrResult release(XrSwapchain,const XrSwapchainImageReleaseInfo*){return XR_SUCCESS;}
-static XrResult endFrame(XrSession,const XrFrameEndInfo*){return XR_SUCCESS;}
+static int expectedLayers=-1, endCalls=0;
+static XrResult endResult=XR_SUCCESS;
+static XrResult endFrame(XrSession,const XrFrameEndInfo* info){
+    ++endCalls;
+    if(expectedLayers>=0) {
+        assert(info && info->layerCount==static_cast<uint32_t>(expectedLayers));
+        assert(info->layers[0]->type==XR_TYPE_COMPOSITION_LAYER_PROJECTION);
+        if(expectedLayers==2) assert(info->layers[1]->type==XR_TYPE_COMPOSITION_LAYER_QUAD);
+    }
+    return endResult;
+}
+static XrResult waitFrame(XrSession,const XrFrameWaitInfo*,XrFrameState* frame){frame->shouldRender=XR_TRUE;frame->predictedDisplayTime=123;return XR_SUCCESS;}
+static XrResult beginFrame(XrSession,const XrFrameBeginInfo*){return XR_SUCCESS;}
+static XrResult createSurface(XrSession,const XrSwapchainCreateInfo*,XrSwapchain* chain,void** surface){*chain=reinterpret_cast<XrSwapchain>(90);*surface=reinterpret_cast<void*>(91);return XR_SUCCESS;}
+static XrResult createSpace(XrSession,const XrReferenceSpaceCreateInfo*,XrSpace* space){*space=reinterpret_cast<XrSpace>(92);return XR_SUCCESS;}
+static XrResult destroySpace(XrSpace){return XR_SUCCESS;}
+static XrResult destroyChain(XrSwapchain){return XR_SUCCESS;}
+
 static XrResult enumerateImages(XrSwapchain,uint32_t capacity,uint32_t* count,XrSwapchainImageBaseHeader* images){
     *count=1;if(capacity)reinterpret_cast<QcomImage*>(images)[0].image=7;return XR_SUCCESS;
 }
 static void* testSymbol(const char* n){
+    if(!strcmp(n,"xrWaitFrame"))return reinterpret_cast<void*>(waitFrame);
+    if(!strcmp(n,"xrBeginFrame"))return reinterpret_cast<void*>(beginFrame);
     if(!strcmp(n,"xrEnumerateSwapchainImages"))return reinterpret_cast<void*>(enumerateImages);
     if(!strcmp(n,"xrAcquireSwapchainImage"))return reinterpret_cast<void*>(acquire);
     if(!strcmp(n,"xrWaitSwapchainImage"))return reinterpret_cast<void*>(wait);
@@ -127,6 +146,49 @@ int main(){
     assert(qcomProject({0,0,0,1},v,x,y) && x<0 && y<0); // asymmetric projection
     assert(!qcomProject({0,1,0,0},v,x,y)); // backwards gaze
     assert(!qcomProject({0,0,0,std::numeric_limits<float>::quiet_NaN()},v,x,y));
+    // Integrated runtime-eye + HUD: public wait/begin/end hooks, real gaze
+    // projection/mapping and GL application, with only runtime/Surface mocked.
+    testConfig="foveation=runtime-eye\nfps_hud=on\nqcomDensity=0.5\nqcomGain=28\nqcomArea=0.5\n";
+    views[1].subImage.imageRect.offset.x=0;
+    tracking=true;pointCount=3;
+    GxrFpsHud::Instance hud;
+    hud.vm=reinterpret_cast<GxrFpsHud::Vm*>(1);hud.createSurface=createSurface;
+    hud.createSpace=createSpace;hud.destroySpace=destroySpace;hud.destroySwapchain=destroyChain;
+    auto instance=reinterpret_cast<XrInstance>(10);
+    GxrFpsHud::instances[instance]=hud;
+    gxrFpsRememberSession(instance,session,16);
+    gxrFpsOnSessionState(session,XR_SESSION_STATE_FOCUSED);
+    GxrFpsHud::testSurfaceAvailable=true;
+    auto submit=[&](int count){
+        assert(xrWaitFrame(session,nullptr,&frame)==XR_SUCCESS);
+        assert(xrBeginFrame(session,nullptr)==XR_SUCCESS);
+        expectedLayers=count;int previous=endCalls;
+        assert(xrEndFrame(session,&end)==endResult && endCalls==previous+1);
+    };
+    submit(1);
+    auto worker=GxrFpsHud::sessions.at(session)->worker;
+    {std::unique_lock<std::mutex> lock(worker->mutex);
+     assert(worker->changed.wait_for(lock,std::chrono::seconds(2),[&]{return worker->ready.load();}));}
+    submit(2);
+    assert(qcomChains.at(chain).mapped && qcomSessions.at(session).focalValid);
+    xrAcquireSwapchainImage(chain,nullptr,&index);
+    int integratedBefore=writes;xrWaitSwapchainImage(chain,nullptr);
+    assert(writes==integratedBefore+6 && densityValue==.5f && bound==99);
+    float previousX=focalX[0];gazeOrientation={0,std::sin(.15f),0,std::cos(.15f)};
+    submit(2);xrWaitSwapchainImage(chain,nullptr);
+    assert(std::abs(focalX[0]-previousX)>.1f);
+    tracking=false;submit(2);xrWaitSwapchainImage(chain,nullptr);
+    assert(densityValue==1 && !qcomSessions.at(session).focalValid);
+    tracking=true;submit(2);xrWaitSwapchainImage(chain,nullptr);assert(densityValue==.5f);
+    // The metrics exclude the diagnostic quad: one accepted interval / second.
+    auto& metrics=GxrFpsHud::sessions.at(session)->metrics;
+    metrics.reset();metrics.sample(gxrFpsNow()-1000000000ULL,true);
+    submit(2);assert(metrics.valid() && metrics.fps()>.9 && metrics.fps()<1.1);
+    endResult=XR_ERROR_RUNTIME_FAILURE;submit(2);
+    assert(GxrFpsHud::sessions.at(session)->failed);
+    endResult=XR_SUCCESS;submit(1);xrWaitSwapchainImage(chain,nullptr);
+    assert(qcomChains.at(chain).mapped && densityValue==.5f);
+    gxrFpsForgetInstance(instance);expectedLayers=-1;
     qcomForget(session);assert(qcomSessions.empty() && qcomChains.empty());
     puts("QCOM projection, mapping, timeout, context, invalid/stale gaze and lifecycle passed");
 }

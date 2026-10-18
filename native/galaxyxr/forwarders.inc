@@ -21,12 +21,6 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrGetInstanceProperties(XrInstance    
     return fn ? fn(instance, instanceProperties) : XR_ERROR_FUNCTION_UNSUPPORTED;
 }
 
-extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrPollEvent(XrInstance                                  instance,
-    XrEventDataBuffer*                          eventData) {
-    auto fn = symbol<PFN_xrPollEvent>("xrPollEvent");
-    return fn ? fn(instance, eventData) : XR_ERROR_FUNCTION_UNSUPPORTED;
-}
-
 extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrResultToString(XrInstance                                  instance,
     XrResult                                    value,
     char                                        buffer[XR_MAX_RESULT_STRING_SIZE]) {
@@ -155,12 +149,6 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrRequestExitSession(XrSession        
     return fn ? fn(session) : XR_ERROR_FUNCTION_UNSUPPORTED;
 }
 
-extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrBeginFrame(XrSession                                   session,
-    const XrFrameBeginInfo*                     frameBeginInfo) {
-    auto fn = symbol<PFN_xrBeginFrame>("xrBeginFrame");
-    return fn ? fn(session, frameBeginInfo) : XR_ERROR_FUNCTION_UNSUPPORTED;
-}
-
 extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrLocateViews(XrSession                                   session,
     const XrViewLocateInfo*                     viewLocateInfo,
     XrViewState*                                viewState,
@@ -271,9 +259,4 @@ extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrGetInputSourceLocalizedName(XrSessio
     char*                                       buffer) {
     auto fn = symbol<PFN_xrGetInputSourceLocalizedName>("xrGetInputSourceLocalizedName");
     return fn ? fn(session, getInfo, bufferCapacityInput, bufferCountOutput, buffer) : XR_ERROR_FUNCTION_UNSUPPORTED;
-}
-
-extern "C" XRAPI_ATTR XrResult XRAPI_CALL xrInitializeLoaderKHR(const XrLoaderInitInfoBaseHeaderKHR*        loaderInitInfo) {
-    auto fn = symbol<PFN_xrInitializeLoaderKHR>("xrInitializeLoaderKHR");
-    return fn ? fn(loaderInitInfo) : XR_ERROR_FUNCTION_UNSUPPORTED;
 }

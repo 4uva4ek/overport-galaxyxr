@@ -40,8 +40,14 @@ jobs:
           g++ -std=c++17 -O2 -Wall -Wextra -Werror -Wno-missing-field-initializers -Inative/galaxyxr/include native/galaxyxr/test_hand_tracking.cpp -ldl -pthread -o native/galaxyxr/build/test_hand_tracking
           native/galaxyxr/build/test_hand_tracking
           native/galaxyxr/build/test_hand_tracking edited
+          for test in fps_metrics fps_hud fps_integration qcom_foveation runtime_eye; do
+            g++ -std=c++17 -O2 -Wall -Wextra -Werror -Wno-missing-field-initializers -Inative/galaxyxr/include native/galaxyxr/test_${test}.cpp -ldl -pthread -o native/galaxyxr/build/test_${test}
+            native/galaxyxr/build/test_${test}
+          done
       - name: Build CLI
-        run: bash gradlew :overportcli:shadowJar --console=plain
+        run: |
+          bash gradlew :overportcli:shadowJar --console=plain
+          java -cp overportcli/build/libs/overportcli-1.2.3-all.jar tools/CheckFpsHud.java
       - uses: actions/upload-artifact@v4
         with:
           name: overport-galaxyxr-cli

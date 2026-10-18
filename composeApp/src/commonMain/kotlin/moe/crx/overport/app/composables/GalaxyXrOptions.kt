@@ -18,6 +18,8 @@ fun GalaxyXrOptions(
     onHandTracking: (Boolean) -> Unit,
     openDispatcher: Boolean,
     onOpenDispatcher: (Boolean) -> Unit,
+    fpsHud: Boolean,
+    onFpsHud: (Boolean) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val sizes = linkedMapOf(
@@ -58,6 +60,12 @@ fun GalaxyXrOptions(
                 headlineContent = { Text(stringResource(Res.string.open_dispatcher)) },
                 supportingContent = { Text(stringResource(if (openDispatcher) Res.string.open_dispatcher_on_hint else Res.string.open_dispatcher_off_hint)) },
                 trailingContent = { Switch(checked = openDispatcher, onCheckedChange = onOpenDispatcher) },
+                colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
+            )
+            ListItem(
+                headlineContent = { Text(stringResource(Res.string.fps_hud)) },
+                supportingContent = { Text(stringResource(Res.string.fps_hud_hint)) },
+                trailingContent = { Switch(checked = fpsHud, onCheckedChange = onFpsHud) },
                 colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
             )
         }
