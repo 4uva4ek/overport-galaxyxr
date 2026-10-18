@@ -163,7 +163,7 @@ fun ApplicationInfoContent(
                     onConfirm(enabledPatches.toMutableMap().apply {
                         this[PATCH_TEXTURE_SIZE.name] = listOf(textureSize)
                         // Shared quality settings are embedded in the patched game.
-                        this[PATCH_GALAXYXR_PERFORMANCE.name] = listOf(if (maximumPerformance) "max" else "app", foveationMode, if (handTracking) "auto" else "off", "fix", "meta", "edited") + foveationQuality.arguments()
+                        this[PATCH_GALAXYXR_PERFORMANCE.name] = listOf(if (maximumPerformance) "max" else "app", foveationMode, if (handTracking) "on" else "off", "fix", "meta", "edited") + foveationQuality.arguments()
                         GalaxyXrPatches.selectDispatcher(this, if (openDispatcher) GalaxyXrPatches.DISPATCHER_OPEN else GalaxyXrPatches.DISPATCHER_OVERPORT)
                     })
                 }

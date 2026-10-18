@@ -1,5 +1,10 @@
 # Changelog
 
+## Galaxy XR 0.3.4 — 2026-10-19
+
+- The enabled Hand tracking permission switch now always adds the Android XR permission launcher, including games without Quest hand-tracking manifest markers such as BONELAB. CLI auto detection remains available through `--hands=auto`.
+
+
 ## Galaxy XR 0.3.1 — 2026-10-15
 
 - Windows: the window and taskbar icon is the full application icon (white lightning on black).
