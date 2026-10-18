@@ -96,10 +96,10 @@ static bool runtimeEyeFixed() { return config().find("foveation=runtime-eye-fixe
 static bool runtimeEyeDiagnostic() { return runtimeEyeFixed() || config().find("foveation=runtime-eye-debug\n") != std::string::npos; }
 static auto runtimeDiagnosticStarted=std::chrono::steady_clock::now();
 static int runtimeDiagnosticPhase() { return runtimeEyeFixed()?1:(std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now()-runtimeDiagnosticStarted).count()/10)%3; }
-static bool runtimeDiagnosticCoarse() { return runtimeDiagnosticPhase()!=0; }
+[[maybe_unused]] static bool runtimeDiagnosticCoarse() { return runtimeDiagnosticPhase()!=0; }
 // Fixed-center stress test: shrink the ideal full-density radius 4x versus gain 8.
-static float runtimeDiagnosticGain() { return runtimeEyeFixed()?32.f:8.f; }
-static bool runtimeDiagnosticCenter(const XrFovf& fov,float& x,float& y) {
+[[maybe_unused]] static float runtimeDiagnosticGain() { return runtimeEyeFixed()?32.f:8.f; }
+[[maybe_unused]] static bool runtimeDiagnosticCenter(const XrFovf& fov,float& x,float& y) {
     float l=std::tan(fov.angleLeft),r=std::tan(fov.angleRight),b=std::tan(fov.angleDown),t=std::tan(fov.angleUp);
     if(!(r>l) || !(t>b)) return false;
     float tangent=0;
@@ -112,7 +112,7 @@ static bool runtimeDiagnosticCenter(const XrFovf& fov,float& x,float& y) {
 }
 static bool runtimeEyeFoveation() { return runtimeEyeDiagnostic() || config().find("foveation=runtime-eye\n") != std::string::npos; }
 static bool eyeFoveation() { return runtimeEyeFoveation() || config().find("foveation=eye\n") != std::string::npos; }
-static float qcomSetting(const char* key, float fallback, float low, float high) {
+[[maybe_unused]] static float qcomSetting(const char* key, float fallback, float low, float high) {
     std::string text="\n"+config(), token="\n"+std::string(key)+"=";
     auto start=text.find(token); if(start==std::string::npos) return fallback;
     start+=token.size(); auto end=text.find('\n',start);
