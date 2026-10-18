@@ -23,7 +23,9 @@ struct QcomSession {
     bool running = false;
     std::chrono::steady_clock::time_point diagnosticStarted = std::chrono::steady_clock::now();
     bool glChecked = false, glSupported = false;
-    bool focalValid = false;
+    bool focalValid = false, holding = false;
+    std::chrono::steady_clock::time_point lastGood{};
+    int gazeResult=0, gazeMode=0, eyeStates[2]{}; uint32_t viewCount=0; XrViewStateFlags viewFlags=0;
     float focalX[2]{}, focalY[2]{};
 };
 struct QcomChain {
@@ -66,7 +68,7 @@ static void qcomSessionCreated(XrSession session, const XrSessionCreateInfo* inf
 }
 static void qcomRunning(XrSession session, bool running) {
     std::lock_guard<std::mutex> lock(qcomMutex);
-    auto it=qcomSessions.find(session); if(it!=qcomSessions.end()) { it->second.running=running; it->second.time=0; it->second.diagnosticStarted=std::chrono::steady_clock::now(); }
+    auto it=qcomSessions.find(session); if(it!=qcomSessions.end()) { it->second.lastGood={}; it->second.focalValid=false; it->second.holding=false; it->second.running=running; it->second.time=0; it->second.diagnosticStarted=std::chrono::steady_clock::now(); }
 }
 static void qcomForget(XrSession session) {
     // Called only after runtime destruction; child tracker/space handles are implicit children.
@@ -81,7 +83,7 @@ static void qcomFrame(XrSession session, const XrFrameState* state) {
     it->second.time=state->shouldRender ? state->predictedDisplayTime : 0;
     it->second.sampled=std::chrono::steady_clock::now();
     auto& s=it->second;
-    s.focalValid=false;
+    s.focalValid=false; s.holding=false;
     if(runtimeEyeFoveation() && s.running && s.time>0 && s.tracker && s.space && s.getEyes) {
         XrEyesANDROID eyes{XR_TYPE_EYES_ANDROID};
         XrEyesGetInfoANDROID get{XR_TYPE_EYES_GET_INFO_ANDROID,nullptr,s.time,s.space};
@@ -93,10 +95,24 @@ static void qcomFrame(XrSession session, const XrFrameState* state) {
         bool valid=gaze==XR_SUCCESS && eyes.mode==XR_EYE_TRACKING_MODE_BOTH_ANDROID && locateViews &&
             locateViews(session,&locate,&vs,2,&count,views)==XR_SUCCESS && count==2 &&
             (vs.viewStateFlags & XR_VIEW_STATE_ORIENTATION_VALID_BIT);
+        bool viewValid=valid;
+        float nextX[2]{},nextY[2]{};
         for(int i=0;valid && i<2;++i) valid=eyes.eyes[i].eyeState==XR_EYE_STATE_GAZING_ANDROID &&
-            qcomProject(eyes.eyes[i].eyePose.orientation,views[i],s.focalX[i],s.focalY[i]);
+            qcomProject(eyes.eyes[i].eyePose.orientation,views[i],nextX[i],nextY[i]);
+        bool shut=eyes.eyes[0].eyeState==XR_EYE_STATE_SHUT_ANDROID || eyes.eyes[1].eyeState==XR_EYE_STATE_SHUT_ANDROID;
+        bool known=(eyes.eyes[0].eyeState==XR_EYE_STATE_GAZING_ANDROID || eyes.eyes[0].eyeState==XR_EYE_STATE_SHUT_ANDROID) &&
+                   (eyes.eyes[1].eyeState==XR_EYE_STATE_GAZING_ANDROID || eyes.eyes[1].eyeState==XR_EYE_STATE_SHUT_ANDROID);
+        if(valid) {
+            for(int i=0;i<2;++i) { s.focalX[i]=nextX[i]; s.focalY[i]=nextY[i]; }
+            s.lastGood=s.sampled;
+        } else if(viewValid && shut && known && s.lastGood.time_since_epoch().count()!=0 &&
+                  s.sampled-s.lastGood<std::chrono::milliseconds(300)) {
+            valid=true; s.holding=true; // Do not extend lastGood on held samples.
+        } else s.lastGood={};
+        s.gazeResult=gaze; s.gazeMode=eyes.mode; s.eyeStates[0]=eyes.eyes[0].eyeState; s.eyeStates[1]=eyes.eyes[1].eyeState;
+        s.viewCount=count; s.viewFlags=vs.viewStateFlags;
         s.focalValid=valid;
-    }
+    } else s.lastGood={};
 }
 static void qcomChainCreated(XrSession session,const XrSwapchainCreateInfo* info,XrSwapchain chain) {
     if((!qcomFoveation() && !runtimeEyeFoveation()) || !info) return;
@@ -182,6 +198,7 @@ static void qcomApply(QcomChain& c) { // qcomMutex held; successful wait, before
         float area=diagnostic?0.f:qcomSetting("qcomArea",.15f,0.f,2.f);
         float requestedFloor=diagnostic?.125f:qcomSetting("qcomDensity",.35f,.125f,1.f);
         bool changed=c.diagnosticLast!=int(coarse);
+        if(report || changed) LOG("Gaze fallback detail: full=%d fresh=%d focalValid=%d running=%d render=%d ageMs=%lld gazeResult=%d mode=%d eyes=%d/%d views=%u flags=%llu diagnostic=%d hold=%d",!coarse,fresh,s.focalValid,s.running,s.time>0,(long long)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-s.sampled).count(),s.gazeResult,s.gazeMode,s.eyeStates[0],s.eyeStates[1],s.viewCount,(unsigned long long)s.viewFlags,diagnostic,s.holding);
         if(report || changed) LOG("Runtime-eye GPU before texture=%u enabled=%d available=%d points=%d minDensity=%.3f error=0x%x mapped=%d",texture,enabled,available,focalCount,floor,error?error:queryError,c.mapped);
         if(error==GL_NO_ERROR && queryError==GL_NO_ERROR && getFloat && (available&3)==3 && focalCount>0 && focalCount<=16 && (fresh || (enabled&1))) {
             if(!(enabled&1)) glTexParameteri(GL_TEXTURE_2D_ARRAY,features,3);

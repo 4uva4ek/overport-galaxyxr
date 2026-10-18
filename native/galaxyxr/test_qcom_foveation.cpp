@@ -10,6 +10,7 @@ static int pointCount=1;
 static int storageWidth=1024;
 static float densityValue=1, focalX[2]{}, focalY[2]{};
 static bool tracking=true;
+static bool shutRight=false;
 static XrResult waitResult=XR_SUCCESS;
 static XrQuaternionf gazeOrientation{0,0,0,1};
 static EGLContext eglGetCurrentContext(){return current;}
@@ -27,6 +28,7 @@ static void glTexParameterf(GLenum,GLenum,GLfloat v){densityValue=v;}
 static XrResult eyes(XrEyeTrackerANDROID,const XrEyesGetInfoANDROID*,XrEyesANDROID* out){
     out->mode=tracking?XR_EYE_TRACKING_MODE_BOTH_ANDROID:XR_EYE_TRACKING_MODE_NOT_TRACKING_ANDROID;
     for(auto& eye:out->eyes){eye.eyeState=XR_EYE_STATE_GAZING_ANDROID;eye.eyePose.orientation=gazeOrientation;}
+    if(shutRight) out->eyes[1].eyeState=XR_EYE_STATE_SHUT_ANDROID;
     return XR_SUCCESS;
 }
 static XrResult locate(XrSession,const XrViewLocateInfo*,XrViewState* state,uint32_t,uint32_t* count,XrView* views){
@@ -190,5 +192,21 @@ int main(){
     assert(qcomChains.at(chain).mapped && densityValue==.5f);
     gxrFpsForgetInstance(instance);expectedLayers=-1;
     qcomForget(session);assert(qcomSessions.empty() && qcomChains.empty());
+    testConfig="foveation=runtime-eye\n";
+    qcomSessions[session]=s;
+    tracking=true; shutRight=false;
+    qcomFrame(session,&frame);
+    auto& held=qcomSessions.at(session);
+    assert(held.focalValid && !held.holding);
+    float savedX=held.focalX[0]; auto savedTime=held.lastGood;
+    shutRight=true; gazeOrientation={0,-std::sin(.3f),0,std::cos(.3f)};
+    qcomFrame(session,&frame);
+    assert(held.focalValid && held.holding && held.focalX[0]==savedX && held.lastGood==savedTime);
+    held.lastGood=std::chrono::steady_clock::now()-std::chrono::milliseconds(301);
+    qcomFrame(session,&frame); assert(!held.focalValid && !held.holding);
+    shutRight=false; qcomFrame(session,&frame); assert(held.focalValid && !held.holding);
+    tracking=false; qcomFrame(session,&frame); assert(!held.focalValid && !held.holding);
+    tracking=true; qcomFrame(session,&frame); qcomRunning(session,false);
+    assert(!held.focalValid && held.lastGood.time_since_epoch().count()==0);
     puts("QCOM projection, mapping, timeout, context, invalid/stale gaze and lifecycle passed");
 }
